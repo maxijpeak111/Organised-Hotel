@@ -4,23 +4,7 @@ const W = window.W, h = W.h, S = () => W.state;
 const card = (...kids) => h('div', { class: 'card' }, kids);
 const head = (title, n) => h('h2', {}, h('span', {}, title), n != null ? h('span', { class: 'count' }, n) : null);
 
-/* ---------- what belongs on a given day ---------- */
-W.dayTasks = function (D) {
-  const t = W.today();
-  return S().tasks.filter(x => {
-    if (x.due === D) return true;
-    if (D !== t) return false;
-    if (!x.done) return (x.due && x.due < t) || (x.from && !x.due);   // overdue, or someone's waiting on you
-    return x.doneAt === t && ((x.due && x.due < t) || (x.from && !x.due)); // finished today, keep it showing
-  }).sort((a, b) => (a.done - b.done) || (!!b.from - !!a.from) || ((a.due || '9') < (b.due || '9') ? -1 : 1));
-};
-W.dayCleaning = function (D) {
-  const t = W.today();
-  return S().cleaning.filter(c => (D === t && c.last === t) || W.cleanOn(c, D))
-    .sort((a, b) => ((a.last === t) - (b.last === t)) || W.cleanOverdue(a) - W.cleanOverdue(b) || a.title.localeCompare(b.title));
-};
 W.dayEvents = D => S().events.filter(e => e.date === D).sort((a, b) => (a.time || '') < (b.time || '') ? -1 : 1);
-
 const KIND_ICON = { function: '🥂', event: '🎉', busy: '🔥', delivery: '📦', meeting: '💬', other: '📌' };
 W.eventRow = function (e, showDay) {
   return h('div', { class: 'item', style: 'cursor:pointer', onclick: () => W.editEvent(e) },
@@ -29,6 +13,7 @@ W.eventRow = function (e, showDay) {
       h('div', { class: 't' }, e.title),
       h('div', { class: 'sub' }, h('span', { class: 'pill' + (e.kind === 'busy' ? ' warn' : '') }, W.eventKind(e.kind)),
         [showDay ? W.relDay(e.date) : null, e.time].filter(Boolean).join(' · ')),
+      e.kind === 'function' && e.fd ? h('div', { class: 'sub', style: 'margin-top:4px' }, [e.fd.guests ? '👥 ' + e.fd.guests + ' guests' : null, e.fd.timings ? '🕒 ' + e.fd.timings.split('\n')[0] : null].filter(Boolean).join('  ·  ')) : null,
       e.notes ? h('div', { class: 'sub', style: 'margin-top:4px' }, '📝 ' + e.notes) : null));
 };
 
@@ -39,29 +24,30 @@ W.views.today = function (app) {
   if (!viewDay || (viewDay < t)) viewDay = t;
   const D = viewDay, isToday = D === t;
   const shift = s.shifts[D], next = s.shifts[W.addDays(D, 1)];
-  const tasks = W.dayTasks(D), clean = W.dayCleaning(D), events = W.dayEvents(D);
-  const total = tasks.length + clean.length;
-  const done = tasks.filter(x => x.done).length + clean.filter(c => isToday && c.last === t).length;
+  const items = W.dayItems(D);
+  const total = items.length, done = items.filter(i => W.isDone(i.task, i.occ)).length;
+  const dailyCount = s.tasks.filter(x => x.repeat === 'daily').length;
+  const overdue = isToday ? W.overdueItems() : [];
+  const team = W.openTeam().filter(x => x.date === D || (isToday && (!x.date || x.date < t)));
+  const events = W.dayEvents(D);
+  const prep = s.events.filter(e => e.date > D && e.date <= W.addDays(D, 7)).sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
   const hr = new Date().getHours();
   const title = isToday ? (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ' 👋' : W.relDay(D);
 
-  // Hotel: what's on + what to prepare for over the next week
-  const prep = s.events.filter(e => e.date > D && e.date <= W.addDays(D, 7)).sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
-
-  // Coming up: tasks and (non-daily) cleaning over the next 7 days, plus undated tasks of your own
+  // Coming up: next 7 days (not daily ones), each repeating task shown once
   const seen = new Set();
   const upDays = [...Array(7)].map((_, i) => W.addDays(D, i + 1)).map(d => ({
-    d, tasks: s.tasks.filter(x => !x.done && x.due === d),
-    clean: s.cleaning.filter(c => Number(c.every) > 1 && !seen.has(c.id) && W.cleanOn(c, d) && seen.add(c.id))
-  })).filter(x => x.tasks.length || x.clean.length);
-  const anytime = s.tasks.filter(x => !x.done && !x.due && !x.from);
+    d, items: W.dayItems(d).filter(i => i.task.repeat !== 'daily' && !W.isDone(i.task, i.occ) && !seen.has(i.task.id) && seen.add(i.task.id))
+  })).filter(x => x.items.length);
+  const anytime = s.tasks.filter(x => x.repeat === 'none' && !x.done && !x.date);
 
-  const jn = (s.journal[D] || []);
-  const jOpen = jn.filter(n => !n.sorted).length;
+  const jn = (s.journal[D] || []), jOpen = jn.filter(n => !n.sorted).length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  let planNote = null;
+  if (!total) planNote = shift && shift.off ? 'Day off 🎉' : !shift && dailyCount ? 'No shift on the rota, so no daily tasks. Tap the shift above to add one.' : 'Nothing planned yet. Add a task above.';
 
   W.fill(app,
     h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
-    // small info line: date · shift · tomorrow
     h('div', { class: 'info-line', onclick: () => W.editShift(D) },
       h('span', {}, W.niceDate(D)),
       h('span', {}, '⏰ ' + (shift ? W.fmtShift(shift) : 'No shift set')),
@@ -73,36 +59,37 @@ W.views.today = function (app) {
       h('button', { class: 'icon-btn', onclick: W.settings, 'aria-label': 'Settings' }, '⚙')),
     !isToday ? h('button', { class: 'btn ghost small', style: 'margin:0 0 12px', onclick: () => { viewDay = t; W.render(); } }, '← Back to today') : null,
 
-    // YOUR DAY overview
+    W.quickBox(isToday ? '' : D),
+
+    // YOUR DAY
     h('div', { class: 'overview' },
       h('div', { class: 'ov-head' },
-        h('div', {}, h('div', { class: 'ov-title' }, isToday ? 'Your day' : 'Your ' + W.DAYS_LONG[W.parse(D).getDay()]),
-          h('div', { class: 'ov-sub' }, total ? (isToday ? done + ' of ' + total + ' done' : total + ' thing' + (total > 1 ? 's' : '') + ' planned') : (shift && shift.off ? 'Day off 🎉' : 'Nothing planned yet'))),
-        total && isToday ? h('div', { class: 'ov-num' }, Math.round(done / total * 100) + '%') : null),
-      total && isToday ? h('div', { class: 'ov-bar' }, h('i', { style: 'width:' + Math.round(done / total * 100) + '%' })) : null,
-      tasks.length ? h('div', { class: 'ov-list' }, tasks.map(W.taskRow)) : h('div', { class: 'ov-empty' }, 'No tasks for this day. Tap + to add one.'),
-      clean.length ? h('div', { class: 'ov-foot', onclick: () => document.getElementById('clean-sec').scrollIntoView({ behavior: 'smooth' }) },
-        '🧽 ' + clean.length + ' cleaning job' + (clean.length > 1 ? 's' : '') + ' too, see below') : null),
+        h('div', {}, h('div', { class: 'ov-title' }, isToday ? 'Today\'s plan' : W.DAYS_LONG[W.parse(D).getDay()] + '\'s plan'),
+          h('div', { class: 'ov-sub' }, total ? done + ' of ' + total + ' done' : 'Nothing yet')),
+        total ? h('div', { class: 'ov-num' }, pct + '%') : null),
+      total ? h('div', { class: 'ov-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
+      total ? h('div', { class: 'ov-list' }, W.planList(items)) : h('div', { class: 'ov-empty' }, planNote)),
+
+    // OVERDUE
+    overdue.length ? [W.head('Overdue', overdue.length), h('div', { class: 'card overdue' }, overdue.map(i => W.taskRow(i, { overdue: true })))] : null,
+
+    // TEAM
+    team.length ? [h('h2', {}, h('span', {}, 'Team tasks'), h('span', { class: 'count' }, team.length)), W.card(team.map(W.teamRow))] : null,
 
     // IN THE HOTEL
-    head('In the hotel', events.length || null),
-    events.length ? card(events.map(e => W.eventRow(e, false))) : h('div', { class: 'empty' }, 'Nothing special on. Add functions, events or busy days with +.'),
-    prep.length ? [h('div', { class: 'sub-head' }, 'Get ready for'), card(prep.map(e => W.eventRow(e, true)))] : null,
-
-    // CLEANING
-    h('div', { id: 'clean-sec' }),
-    head('Cleaning', clean.length || null),
-    clean.length ? card(clean.map(W.cleanRow)) : h('div', { class: 'empty' }, s.cleaning.length ? 'No cleaning due' : 'No cleaning jobs yet. Add them in the Clean tab.'),
+    W.head('In the hotel', events.length || null),
+    events.length ? W.card(events.map(e => W.eventRow(e, false))) : h('div', { class: 'empty' }, 'Nothing special on. Add functions, events or busy days with +.'),
+    prep.length ? [h('div', { class: 'sub-head' }, 'Get ready for'), W.card(prep.map(e => W.eventRow(e, true)))] : null,
 
     // COMING UP
-    head('Coming up', null),
-    upDays.length || anytime.length ? card(
-      upDays.map(x => [h('div', { class: 'up-day' }, W.relDay(x.d)), x.tasks.map(W.taskRow), x.clean.map(c => W.cleanRow(c, true))]),
-      anytime.length ? [h('div', { class: 'up-day' }, 'Anytime'), anytime.map(W.taskRow)] : null)
+    W.head('Coming up', null),
+    upDays.length || anytime.length ? W.card(
+      upDays.map(x => [h('div', { class: 'up-day' }, W.relDay(x.d) + (W.daysBetween(t, x.d) > 1 && W.daysBetween(t, x.d) < 7 ? ' · ' + W.shortDate(x.d) : '')), x.items.map(i => W.taskRow(i))]),
+      anytime.length ? [h('div', { class: 'up-day' }, 'Anytime'), anytime.map(x => W.taskRow({ task: x, occ: '' }))] : null)
       : h('div', { class: 'empty' }, 'Nothing else in the next week'),
-    upDays.some(x => x.clean.length) ? h('p', { class: 'muted small', style: 'text-align:center' }, 'Done everything for today? Tick off a cleaning job early to get ahead.') : null,
+    upDays.length ? h('p', { class: 'muted small', style: 'text-align:center' }, 'Finished today\'s plan? Tick something off early to get ahead.') : null,
 
-    // JOURNAL link
+    // JOURNAL
     h('div', { class: 'card tap', style: 'margin-top:18px', onclick: () => { W.journalDay = D; W.go('journal'); } },
       h('div', { class: 'row between' }, h('div', {}, h('div', { style: 'font-weight:800' }, '📓 Journal'),
         h('div', { class: 'muted small' }, jn.length ? jn.length + ' note' + (jn.length > 1 ? 's' : '') + (jOpen ? ' · ' + jOpen + ' to sort' : ' · all sorted') : 'Jot things down as the day goes on')),
@@ -157,7 +144,7 @@ W.views.journal = function (app) {
           h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this note?', () => { s.journal[D] = s.journal[D].filter(x => x.id !== n.id); W.save(); W.render(); }) }, 'Delete')]);
       } }, n.text),
       !n.sorted ? h('div', { class: 'jactions' },
-        h('span', { class: 'chip', onclick: () => W.editTask(null, { title: n.text.slice(0, 120), notes: n.text.length > 120 ? n.text : '', from: '' }, () => markSorted(n, 'Task')) }, '→ Task'),
+        h('span', { class: 'chip', onclick: () => W.editTask(null, Object.assign(W.parseQuick(n.text.slice(0, 160)), { notes: n.text.length > 160 ? n.text : '' }), () => markSorted(n, 'Task')) }, '→ Task'),
         h('span', { class: 'chip', onclick: () => W.editEvent(null, null, { title: n.text.slice(0, 120) }, () => markSorted(n, 'Hotel')) }, '→ Hotel'),
         h('span', { class: 'chip', onclick: () => W.editIdea(null, { title: n.text.slice(0, 120), notes: n.text.length > 120 ? n.text : '' }, () => markSorted(n, 'Idea')) }, '→ Idea'),
         h('span', { class: 'chip', onclick: () => { markSorted(n, 'Done'); W.render(); } }, '✓ Nothing to do')) : null)))

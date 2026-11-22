@@ -3,29 +3,6 @@
 const W = window.W, h = W.h, S = () => W.state;
 
 /* =================== EDITORS =================== */
-W.editTask = function (t, preset, onSave) {
-  const isNew = !t;
-  const d = t ? { ...t } : Object.assign({ id: W.uid(), title: '', notes: '', from: '', due: '', done: false, created: W.today() }, preset || {});
-  const title = h('input', { value: d.title, placeholder: 'What needs doing?' });
-  const from = h('input', { value: d.from, placeholder: 'e.g. Sarah (manager). Leave blank if it\'s your own' });
-  const due = h('input', { type: 'date', value: d.due });
-  const notes = h('textarea', { value: d.notes, placeholder: 'Notes (optional)' });
-  W.sheet(isNew ? (preset && preset.from !== undefined && !preset.title ? 'Someone asked me…' : 'New task') : 'Edit task', [
-    W.field('Task', title), W.field('Who asked?', from),
-    W.field('Due', h('div', {}, due, W.chips([[W.today(), 'Today'], [W.addDays(W.today(), 1), 'Tomorrow'], [W.addDays(W.today(), 7), 'Next week'], ['', 'No date']], d.due, v => { due.value = v; }))),
-    W.field('Notes', notes),
-    h('button', { class: 'btn block', onclick: () => {
-      if (!title.value.trim()) return W.toast('Add a task name');
-      Object.assign(d, { title: title.value.trim(), from: from.value.trim(), due: due.value, notes: notes.value.trim() });
-      if (isNew) S().tasks.push(d); else Object.assign(t, d);
-      if (onSave) onSave(d);
-      W.save(); W.close(); W.render();
-    } }, 'Save'),
-    !isNew && h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this task?', () => { S().tasks = S().tasks.filter(x => x.id !== t.id); W.save(); W.render(); }) }, 'Delete')
-  ]);
-  if (isNew) setTimeout(() => title.focus(), 50);
-};
-
 W.EVENT_KINDS = [['function', 'Function'], ['event', 'Event'], ['busy', 'Busy day'], ['delivery', 'Delivery'], ['meeting', 'Meeting'], ['other', 'Other']];
 W.eventKind = k => (W.EVENT_KINDS.find(x => x[0] === k) || [0, 'Event'])[1];
 W.editEvent = function (ev, date, preset, onSave) {
@@ -34,12 +11,26 @@ W.editEvent = function (ev, date, preset, onSave) {
   const title = h('input', { value: d.title, placeholder: 'e.g. Christmas party (40 people), big match on TV' });
   const dt = h('input', { type: 'date', value: d.date });
   const tm = h('input', { type: 'time', value: d.time });
-  const notes = h('textarea', { value: d.notes, placeholder: 'Numbers, set-up, extra stock, staff needed…' });
+  const notes = h('textarea', { value: d.notes, placeholder: 'Anything else to prepare: extra stock, reminders…' });
+  d.fd = Object.assign({ guests: '', setup: '', timings: '', food: '', drinks: '', staff: '', contact: '' }, d.fd || {});
+  const F = {};
+  const fdField = (k, label, ph, big) => W.field(label, F[k] = h(big ? 'textarea' : 'input', Object.assign({ value: d.fd[k], placeholder: ph }, k === 'guests' ? { type: 'number', inputmode: 'numeric' } : {}, big ? { style: 'min-height:64px' } : {})));
+  const fn = h('div', { class: 'fn-box', style: d.kind === 'function' ? '' : 'display:none' },
+    h('div', { class: 'fn-title' }, '🥂 Function details'),
+    h('div', { class: 'grid2' }, fdField('guests', 'Guests', 'e.g. 60'), fdField('contact', 'Organiser / contact', 'Name, room or phone')),
+    fdField('timings', 'Timings', 'e.g. 18:30 arrive, 19:00 speeches, 23:00 finish', true),
+    fdField('setup', 'Set-up', 'Room, tables, glassware, decorations…', true),
+    fdField('food', 'Food', 'Menu, dietary needs, when it\'s served', true),
+    fdField('drinks', 'Drinks', 'Package, drinks on arrival, bar tab…', true),
+    fdField('staff', 'Staff', 'Who\'s working it, how many', true));
   W.sheet(isNew ? 'In the hotel' : 'Edit', [
-    W.field('What', title), W.field('Type', W.chips(W.EVENT_KINDS, d.kind, v => { d.kind = v; })),
-    h('div', { class: 'grid2' }, W.field('Date', dt), W.field('Time', tm)), W.field('To prepare / notes', notes),
+    W.field('What', title), W.field('Type', W.chips(W.EVENT_KINDS, d.kind, v => { d.kind = v; fn.style.display = v === 'function' ? '' : 'none'; })),
+    h('div', { class: 'grid2' }, W.field('Date', dt), W.field('Time', tm)),
+    fn,
+    W.field('To prepare / notes', notes),
     h('button', { class: 'btn block', onclick: () => {
       if (!title.value.trim() || !dt.value) return W.toast('Add a name and date');
+      Object.keys(F).forEach(k => { d.fd[k] = F[k].value.trim(); });
       Object.assign(d, { title: title.value.trim(), date: dt.value, time: tm.value, notes: notes.value.trim() });
       if (isNew) S().events.push(d); else Object.assign(ev, d);
       if (onSave) onSave(d);
@@ -71,26 +62,6 @@ W.editShift = function (date) {
   ]);
 };
 
-W.editClean = function (c) {
-  const isNew = !c;
-  const d = c ? { ...c } : { id: W.uid(), title: '', area: '', every: 1, last: '' };
-  const title = h('input', { value: d.title, placeholder: 'e.g. Clean glass washer' });
-  const areas = [...new Set(S().cleaning.map(x => x.area).filter(Boolean))];
-  const area = h('input', { value: d.area, placeholder: 'e.g. Bar, Cellar, Toilets', list: 'areas' });
-  const every = h('input', { type: 'number', inputmode: 'numeric', min: 1, value: d.every });
-  W.sheet(isNew ? 'New cleaning job' : 'Edit cleaning job', [
-    W.field('Job', title), W.field('Area', h('div', {}, area, h('datalist', { id: 'areas' }, areas.map(a => h('option', { value: a }))))),
-    W.field('How often (days)', h('div', {}, every, W.chips([[1, 'Daily'], [2, 'Every 2 days'], [7, 'Weekly'], [14, 'Fortnightly'], [30, 'Monthly']], Number(d.every), v => { every.value = v; }))),
-    h('button', { class: 'btn block', onclick: () => {
-      if (!title.value.trim()) return W.toast('Add a job name');
-      Object.assign(d, { title: title.value.trim(), area: area.value.trim(), every: Math.max(1, Number(every.value) || 1) });
-      if (isNew) S().cleaning.push(d); else Object.assign(c, d);
-      W.save(); W.close(); W.render();
-    } }, 'Save'),
-    !isNew && h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this cleaning job?', () => { S().cleaning = S().cleaning.filter(x => x.id !== c.id); W.save(); W.render(); }) }, 'Delete')
-  ]);
-};
-
 W.IDEA_CATS = ['Drinks', 'Service', 'Events', 'Marketing', 'Saving money', 'Team', 'Other'];
 W.IDEA_STATUS = [['new', 'New'], ['try', 'To try'], ['doing', 'Trying'], ['done', 'Done'], ['no', 'Dropped']];
 W.editIdea = function (i, preset, onSave) {
@@ -118,63 +89,16 @@ W.editIdea = function (i, preset, onSave) {
 W.quickAdd = function () {
   const go = fn => () => { W.close(); setTimeout(fn, 10); };
   W.sheet('Add', h('div', { class: 'menu', style: 'margin-top:12px' },
-    h('div', { class: 'card tap', onclick: go(() => W.editTask(null, { from: '' })) }, 'Someone asked me to…'),
-    h('div', { class: 'card tap', onclick: go(() => W.editTask()) }, 'Work task'),
-    h('div', { class: 'card tap', onclick: go(() => W.editEvent()) }, 'Function, event or busy day'),
-    h('div', { class: 'card tap', onclick: go(() => W.go('journal')) }, 'Journal note'),
-    h('div', { class: 'card tap', onclick: go(() => W.editShift(W.today())) }, 'Shift'),
-    h('div', { class: 'card tap', onclick: go(() => W.editClean()) }, 'Cleaning job'),
-    h('div', { class: 'card tap', onclick: go(() => W.editIdea()) }, 'Business idea')));
-};
-
-/* =================== SHARED ROWS =================== */
-W.taskRow = function (t) {
-  const due = t.due ? W.daysBetween(W.today(), t.due) : null;
-  const dueTxt = t.due ? (due < 0 ? 'Overdue · ' + W.shortDate(t.due) : 'Due ' + W.relDay(t.due).toLowerCase()) : null;
-  return h('div', { class: 'item' + (t.done ? ' done' : '') },
-    h('input', { type: 'checkbox', checked: !!t.done, onchange: e => { t.done = e.target.checked; t.doneAt = t.done ? W.today() : ''; W.save(); W.toast(t.done ? 'Done' : 'Re-opened'); setTimeout(W.render, 250); } }),
-    h('div', { class: 'grow', onclick: () => W.editTask(t) },
-      h('div', { class: 't' }, t.title),
-      (t.from || dueTxt || t.notes) && h('div', { class: 'sub' },
-        t.from && h('span', { class: 'pill warn' }, 'From ' + t.from),
-        dueTxt && h('span', { class: 'pill' + (due < 0 ? ' red' : due === 0 ? ' warn' : '') }, dueTxt),
-        t.notes && h('span', {}, t.notes.length > 50 ? t.notes.slice(0, 50) + '…' : t.notes))));
-};
-W.sortTasks = arr => arr.slice().sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : (a.due || '9999') > (b.due || '9999') ? 1 : 0);
-
-W.cleanRow = function (c, upcoming) {
-  const n = W.cleanOverdue(c);
-  const tag = upcoming ? null : n < 0 ? h('span', { class: 'pill red' }, Math.abs(n) + 'd overdue') : n === 0 ? h('span', { class: 'pill warn' }, 'Due today') : h('span', { class: 'pill' }, 'In ' + n + 'd');
-  const every = c.every == 1 ? 'Daily' : c.every == 7 ? 'Weekly' : 'Every ' + c.every + ' days';
-  return h('div', { class: 'item' },
-    h('input', { type: 'checkbox', checked: !upcoming && c.last === W.today(), onchange: e => {
-      if (e.target.checked) { c.prev = c.last; c.last = W.today(); W.toast('Cleaned'); } else { c.last = c.prev || ''; }
-      W.save(); setTimeout(W.render, 250);
-    } }),
-    h('div', { class: 'grow', onclick: () => W.editClean(c) },
-      h('div', { class: 't' }, c.title),
-      h('div', { class: 'sub' }, tag, (c.area ? c.area + ' · ' : '') + every)));
+    h('div', { class: 'card tap', onclick: go(() => W.editTask()) }, '✅ My task'),
+    h('div', { class: 'card tap', onclick: go(() => W.editTeam()) }, '👤 Hand out a task to the team'),
+    h('div', { class: 'card tap', onclick: go(() => W.editEvent()) }, '🥂 Function, event or busy day'),
+    h('div', { class: 'card tap', onclick: go(() => W.go('journal')) }, '📓 Journal note'),
+    h('div', { class: 'card tap', onclick: go(() => W.editShift(W.today())) }, '⏰ Shift'),
+    h('div', { class: 'card tap', onclick: go(() => W.editIdea()) }, '💡 Business idea')));
 };
 
 const card = (...kids) => h('div', { class: 'card' }, kids);
 const head = (title, n) => h('h2', {}, h('span', {}, title), n != null ? h('span', { class: 'count' }, n) : null);
-
-/* =================== TASKS =================== */
-let taskTab = 'open';
-W.views.tasks = function (app) {
-  const s = S();
-  const open = W.sortTasks(W.openTasks());
-  const list = taskTab === 'asked' ? open.filter(t => t.from) : taskTab === 'done' ? s.tasks.filter(t => t.done).sort((a, b) => (b.doneAt || '') < (a.doneAt || '') ? -1 : 1) : open;
-  W.fill(app,
-    h('h1', {}, 'Tasks'),
-    W.seg([['open', 'To do (' + open.length + ')'], ['asked', 'Asked of me'], ['done', 'Done']], taskTab, v => { taskTab = v; W.render(); }),
-    list.length ? card(list.map(W.taskRow)) : h('div', { class: 'empty' }, taskTab === 'done' ? 'Nothing finished yet' : 'All clear'),
-    taskTab === 'done' && list.length ? h('button', { class: 'btn ghost block', onclick: () => W.confirm('Clear all finished tasks?', () => { s.tasks = s.tasks.filter(t => !t.done); W.save(); W.render(); }) }, 'Clear finished tasks') : null,
-    h('div', { class: 'grid2', style: 'margin-top:12px' },
-      h('button', { class: 'btn', onclick: () => W.editTask(null, { from: '' }) }, 'Someone asked'),
-      h('button', { class: 'btn ghost', onclick: () => W.editTask() }, 'My task'))
-  );
-};
 
 /* =================== ROTA & EVENTS =================== */
 let rotaWeek = null;
@@ -194,14 +118,16 @@ W.views.rota = function (app) {
     days.map(d => {
       const sh = s.shifts[d];
       const evs = s.events.filter(e => e.date === d).sort((a, b) => (a.time || '') < (b.time || '') ? -1 : 1);
-      const due = s.tasks.filter(x => !x.done && x.due === d);
+      const due = W.dayItems(d).filter(i => i.task.repeat !== 'daily' && !W.isDone(i.task, i.occ));
+      const nDaily = W.isShift(d) ? s.tasks.filter(x => x.repeat === 'daily').length : 0;
       return h('div', { class: 'day' + (d === t ? ' today' : '') },
         h('div', { class: 'day-head' },
           h('div', { class: 'day-name' }, W.dayName(d), h('span', { class: 'day-date' }, W.shortDate(d))),
           h('span', { class: 'pill' + (sh && !sh.off ? ' shift' : ''), style: 'cursor:pointer;padding:6px 12px;font-size:13px', onclick: () => W.editShift(d) }, sh ? W.fmtShift(sh) : '+ Shift')),
         sh && sh.note ? h('div', { class: 'muted small', style: 'margin-top:4px' }, sh.note) : null,
         evs.map(e => h('div', { class: 'ev', onclick: () => W.editEvent(e) }, h('b', {}, e.time || '•'), h('div', {}, e.title))),
-        due.map(x => h('div', { class: 'ev', onclick: () => W.editTask(x) }, h('b', {}, '☐'), h('div', { class: 'muted' }, x.title))),
+        due.map(i => h('div', { class: 'ev', onclick: () => W.editTask(i.task) }, h('b', {}, i.task.time || '☐'), h('div', { class: 'muted' }, (i.task.flag ? '🚩 ' : '') + i.task.title))),
+        nDaily ? h('div', { class: 'muted small', style: 'margin-top:6px' }, '+ ' + nDaily + ' daily task' + (nDaily > 1 ? 's' : '')) : null,
         h('div', { style: 'margin-top:8px' }, h('span', { class: 'chip', style: 'margin:0', onclick: () => W.editEvent(null, d) }, '+ Event')));
     }),
     h('button', { class: 'btn ghost block', onclick: () => {
@@ -209,30 +135,6 @@ W.views.rota = function (app) {
       for (let i = 0; i < 7; i++) { const from = s.shifts[W.addDays(prev, i)]; const to = W.addDays(rotaWeek, i); if (from && !s.shifts[to]) { s.shifts[to] = { ...from }; n++; } }
       W.save(); W.render(); W.toast(n ? 'Copied ' + n + ' shifts' : 'Nothing to copy');
     } }, 'Copy last week\'s shifts into empty days')
-  );
-};
-
-/* =================== CLEANING =================== */
-let cleanBy = 'due';
-W.views.clean = function (app) {
-  const s = S();
-  const list = s.cleaning.slice().sort((a, b) => W.cleanOverdue(a) - W.cleanOverdue(b) || a.title.localeCompare(b.title));
-  const dueN = list.filter(c => W.cleanOverdue(c) <= 0).length;
-  let body;
-  if (!list.length) body = [h('div', { class: 'empty' }, 'No cleaning jobs yet.'),
-    h('button', { class: 'btn block', onclick: () => { (window.W_CLEAN_TEMPLATE || []).forEach(([title, area, every], i) => s.cleaning.push({ id: W.uid(), title, area, every, last: every > 1 ? W.addDays(W.today(), -(i % every)) : '' })); W.save(); W.render(); W.toast('Added. Edit or delete any that don\'t fit'); } }, 'Add common bar cleaning jobs'),
-    h('p', { class: 'muted small', style: 'text-align:center' }, 'A starter list you can edit, or add your own with +')];
-  else if (cleanBy === 'area') {
-    const areas = [...new Set(list.map(c => c.area || 'Other'))].sort();
-    body = areas.map(a => [head(a, null), card(list.filter(c => (c.area || 'Other') === a).map(W.cleanRow))]);
-  } else body = [
-    dueN ? [head('Due now', dueN), card(list.filter(c => W.cleanOverdue(c) <= 0).map(W.cleanRow))] : h('div', { class: 'card', style: 'text-align:center;font-weight:800' }, h('span', { class: 'ok' }, '✓ '), 'Everything is up to date'),
-    list.some(c => W.cleanOverdue(c) > 0) ? [head('Later', null), card(list.filter(c => W.cleanOverdue(c) > 0).map(W.cleanRow))] : null];
-  W.fill(app,
-    h('h1', {}, 'Cleaning'),
-    list.length ? W.seg([['due', 'By due date'], ['area', 'By area']], cleanBy, v => { cleanBy = v; W.render(); }) : null,
-    body,
-    list.length ? h('p', { class: 'muted small', style: 'text-align:center;margin-top:14px' }, 'Tick a job when it\'s done. It comes back when it\'s next due.') : null
   );
 };
 

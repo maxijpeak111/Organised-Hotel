@@ -38,7 +38,8 @@ function defaults() {
     stock: null,    // [{id, name, items:[{id, name, low}]}]
     orders: [],     // {id, date, items:[name]}
     ideas: [],      // {id, title, notes, cat, status, created}
-    journal: {}     // date -> [{id, time, text, sorted}]
+    journal: {},    // date -> [{id, time, text, sorted}]
+    team: []        // tasks handed out to staff (see tasks.js)
   };
 }
 function load() {
@@ -58,7 +59,7 @@ W.save = () => {
   try { localStorage.setItem(KEY, JSON.stringify(W.state)); return true; }
   catch (e) { alert('Could not save. Storage may be full or blocked in this browser.'); return false; }
 };
-W.replaceState = obj => { const d = defaults(); W.state = Object.assign(d, obj, { settings: Object.assign(d.settings, obj.settings || {}) }); if (!W.state.stock) W.seedStock(); W.save(); };
+W.replaceState = obj => { const d = defaults(); W.state = Object.assign(d, obj, { settings: Object.assign(d.settings, obj.settings || {}) }); if (!W.state.stock) W.seedStock(); if (W.migrate) W.migrate(); W.save(); };
 W.save();
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
 
@@ -118,7 +119,6 @@ W.cleanDue = c => c.last ? W.addDays(c.last, Number(c.every) || 1) : W.today();
 // Is cleaning job c due on date D? (overdue jobs count as due today; repeats every N days after that)
 W.cleanOn = (c, D) => { const t = W.today(); let d0 = W.cleanDue(c); if (d0 < t) d0 = t; if (D < d0) return false; return W.daysBetween(d0, D) % (Number(c.every) || 1) === 0; };
 W.cleanOverdue = c => W.daysBetween(W.today(), W.cleanDue(c)); // <0 overdue, 0 due today
-W.openTasks = () => W.state.tasks.filter(t => !t.done);
 W.lowItems = () => W.state.stock.flatMap(s => s.items.filter(i => i.low).map(i => ({ ...i, section: s.name })));
 W.nextOrderDate = () => { const t = W.today(); const diff = (Number(W.state.settings.orderDay) - W.parse(t).getDay() + 7) % 7; return W.addDays(t, diff); };
 W.fmtShift = s => s ? (s.off ? 'Off' : ((s.start || '?') + '–' + (s.end || '?'))) : '';
