@@ -44,7 +44,7 @@ W.views.today = function (app) {
   const jn = (s.journal[D] || []), jOpen = jn.filter(n => !n.sorted).length;
   const pct = total ? Math.round(done / total * 100) : 0;
   let planNote = null;
-  if (!total) planNote = shift && shift.off ? 'Day off 🎉' : !shift && dailyCount ? 'No shift on the rota, so no daily tasks. Tap the shift above to add one.' : 'Nothing planned yet. Add a task above.';
+  if (!total) planNote = !W.isShift(D) && (shift && shift.off || s.tasks.some(x => x.repeat !== 'none')) ? 'Day off 🎉 No tasks today. Anything set for today moves to your next shift.' : !shift && dailyCount ? 'No shift on the rota, so no daily tasks. Tap the shift above to add one.' : 'Nothing planned yet. Add a task above.';
 
   W.fill(app,
     h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
@@ -69,6 +69,9 @@ W.views.today = function (app) {
         total ? h('div', { class: 'ov-num' }, pct + '%') : null),
       total ? h('div', { class: 'ov-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
       total ? h('div', { class: 'ov-list' }, W.planList(items)) : h('div', { class: 'ov-empty' }, planNote)),
+
+    // FLEXIBLE JOBS THAT NEED A DAY
+    isToday ? W.needsDaySection() : null,
 
     // OVERDUE
     overdue.length ? [W.head('Overdue', overdue.length), h('div', { class: 'card overdue' }, overdue.map(i => W.taskRow(i, { overdue: true })))] : null,

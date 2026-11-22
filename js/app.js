@@ -14,7 +14,7 @@ let cur = 'today';
 W.go = tab => { location.hash = tab; };
 function badge(tab) {
   const s = W.state, t = W.today();
-  if (tab === 'tasks') return W.overdueItems().length;
+  if (tab === 'tasks') return W.overdueItems().length + W.needsDay().length;
   if (tab === 'stock') return W.lowItems().length;
   if (tab === 'journal') return (s.journal[t] || []).filter(n => !n.sorted).length;
   return 0;

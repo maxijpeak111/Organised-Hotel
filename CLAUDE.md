@@ -18,6 +18,8 @@ Separate from the PT app — do not link or merge them.
   undone ones go to Overdue until done or the period ends (`W.periodEnd`). One-offs stay overdue until done.
   `W.parseQuick` reads typed dates/times/repeats/"!" for the quick-add box (tags under the box let the owner fix it).
   Team tasks (`state.team`, handed out to staff: who/date/time) are separate. Tasks tab: To do (chronological) / Repeating (this week's status + last 4 periods dots) / Team / Done (delete).
+  Flexible jobs (`W.isFlex`: weekly/2-weekly with no days, monthly with no date): owner picks the day each period → `t.placed[periodStart] = date | 'skip'`; `W.needsDay` / `W.needsDaySection` alert (Today + Tasks To do) until placed; `W.planPeriod` switches to next period when no working days are left.
+  Days off: repeating tasks never land on a non-shift day — `W.effDate` moves them to the next shift (never past the task's next repeat). `W.dayItems(D)` uses effDate.
   `W.planList` folds 2+ cleaning tasks on a day into a "Cleaning ▸" dropdown. `W.migrate` converted v1 tasks + cleaning (tv: 2).
 - `js/today.js` Today (day-by-day, ‹ › and swipe): info line, quick-add, Today's plan (timed first, flagged next) → Overdue → Team → In the hotel (+ Get ready for) → Coming up → Journal link; and the Journal tab
 - `js/stock.js` stock list: tap to flag low → order list; "Order placed" saves to `orders` history
@@ -34,4 +36,5 @@ Separate from the PT app — do not link or merge them.
 - Plan first, then Overdue. Flag = one level (🚩). Done tasks stay until deleted. Functions stay separate ("In the hotel") with full details.
 - No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
 - Each Tasks section's + (round button and the + by the typing box) opens that section's own form: To do → one-off task + date (no repeat options); Repeating → must choose how often (nothing pre-picked); Team → hand out task. No + on Done. Date chips start unselected on new tasks.
+- Weekly jobs don't need a set day (owner decides as the week begins; app reminds him to place them). No tasks on days off.
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.

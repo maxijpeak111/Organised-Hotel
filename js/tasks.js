@@ -16,26 +16,55 @@ W.card = card; W.head = head;
 W.REPEATS = [['none', 'One-off'], ['daily', 'Every shift'], ['weekly', 'Weekly'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Monthly']];
 const daysLabel = ds => WEEK_ORDER.filter(d => (ds || []).includes(d)).map(d => DAY_SHORT[d]).join(', ');
 const ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
-W.repeatLabel = t => t.repeat === 'daily' ? 'Every shift' : t.repeat === 'weekly' ? 'Weekly · ' + (daysLabel(t.days) || 'pick a day') :
-  t.repeat === 'biweekly' ? 'Every 2 weeks · ' + (daysLabel(t.days) || 'pick a day') : t.repeat === 'monthly' ? 'Monthly · ' + ord(t.mday || 1) : 'One-off';
+// Flexible = weekly/2-weekly with no day chosen, or monthly with no date: you pick the day each period.
+W.isFlex = t => ((t.repeat === 'weekly' || t.repeat === 'biweekly') && !(t.days || []).length) || (t.repeat === 'monthly' && !t.mday);
+W.repeatLabel = t => t.repeat === 'daily' ? 'Every shift' :
+  t.repeat === 'weekly' ? 'Weekly · ' + (daysLabel(t.days) || 'you pick the day') :
+  t.repeat === 'biweekly' ? 'Every 2 weeks · ' + (daysLabel(t.days) || 'you pick the day') :
+  t.repeat === 'monthly' ? 'Monthly · ' + (t.mday ? ord(t.mday) : 'you pick the day') : 'One-off';
 
 W.isShift = D => { const sh = S().shifts[D]; return !!(sh && !sh.off); };
+const isOff = D => { const sh = S().shifts[D]; return !!(sh && sh.off); };
 const lastDayOfMonth = D => { const d = W.parse(D); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
+// First day of the period (week / fortnight / month) that day D falls in
+W.periodStart = function (t, D) {
+  if (t.repeat === 'monthly') return D.slice(0, 8) + '01';
+  const ws = W.weekStart(D);
+  if (t.repeat === 'biweekly') { const odd = Math.abs(W.daysBetween(W.weekStart(t.start || D), ws) / 7) % 2; return odd ? W.addDays(ws, -7) : ws; }
+  return ws;
+};
+W.periodEnd = function (t, D) {
+  if (t.repeat === 'monthly') { const d = W.parse(D); return W.dstr(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+  if (t.repeat === 'biweekly') return W.addDays(W.periodStart(t, D), 13);
+  if (t.repeat === 'weekly') return W.addDays(W.weekStart(D), 6);
+  return D;
+};
+// The day a task is set for (before moving it off days off)
 W.occursOn = function (t, D) {
   if (t.repeat === 'none' || !t.repeat) return t.date === D;
-  if (D < (t.start || '0')) return false;
+  if (D < (t.start || '0') && !(W.isFlex(t) && W.periodEnd(t, D) >= (t.start || '0'))) return false;
   if (t.repeat === 'daily') return W.isShift(D);
+  if (W.isFlex(t)) return (t.placed || {})[W.periodStart(t, D)] === D;
   if (t.repeat === 'weekly') return (t.days || []).includes(dow(D));
-  if (t.repeat === 'biweekly') return (t.days || []).includes(dow(D)) && (W.daysBetween(W.weekStart(t.start || D), W.weekStart(D)) / 7) % 2 === 0;
-  if (t.repeat === 'monthly') return W.parse(D).getDate() === Math.min(t.mday || 1, lastDayOfMonth(D));
+  if (t.repeat === 'biweekly') return (t.days || []).includes(dow(D)) && W.periodStart(t, D) === W.weekStart(D);
+  if (t.repeat === 'monthly') return W.parse(D).getDate() === Math.min(t.mday, lastDayOfMonth(D));
   return false;
 };
-// last day an occurrence can still be done before it counts as missed
-W.periodEnd = function (t, occ) {
-  if (t.repeat === 'weekly') return W.addDays(W.weekStart(occ), 6);
-  if (t.repeat === 'biweekly') { const ws = W.weekStart(occ); const odd = (W.daysBetween(W.weekStart(t.start || occ), ws) / 7) % 2; return W.addDays(ws, odd ? 6 : 13); }
-  if (t.repeat === 'monthly') { const d = W.parse(occ); return W.dstr(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+// No tasks on days off: a set day that isn't a shift moves to your next shift
+// (it never rolls past the task's next repeat; if there's no shift before then, it stays where it was)
+W.effDate = function (t, occ) {
+  if (t.repeat === 'none' || t.repeat === 'daily' || W.isShift(occ)) return occ;
+  let limit = 31; for (let i = 1; i <= 31; i++) if (W.occursOn(t, W.addDays(occ, i))) { limit = i; break; }
+  for (let i = 1; i < limit; i++) { const d = W.addDays(occ, i); if (W.isShift(d)) return d; }
+  for (let i = 1; i < limit; i++) { const d = W.addDays(occ, i); if (!isOff(d) && !W.isShift(d) && !S().shifts[d]) return d; }
   return occ;
+};
+// Which period to plan a flexible job in: this one, or the next if no working days are left in this one
+W.planPeriod = function (t) {
+  const t0 = W.today(), ps = W.periodStart(t, t0), pe = W.periodEnd(t, t0);
+  if ((t.placed || {})[ps] || doneInPeriod(t, ps)) return ps;
+  for (let d = t0; d <= pe; d = W.addDays(d, 1)) if (W.isShift(d) || (!S().shifts[d] && d > t0)) return ps;
+  return W.addDays(pe, 1);
 };
 W.isDone = (t, occ) => t.repeat === 'none' || !t.repeat ? !!t.done : !!(t.doneDates || {})[occ];
 W.setDone = function (t, occ, val) {
@@ -43,6 +72,7 @@ W.setDone = function (t, occ, val) {
   else { t.doneDates = t.doneDates || {}; if (val) t.doneDates[occ] = W.today(); else delete t.doneDates[occ]; }
   W.save();
 };
+const doneInPeriod = (t, ps) => { const pe = W.periodEnd(t, ps); return Object.keys(t.doneDates || {}).some(k => k >= ps && k <= pe); };
 
 const sortItems = arr => arr.sort((a, b) => {
   const at = a.task.time || '', bt = b.task.time || '';
@@ -51,20 +81,70 @@ const sortItems = arr => arr.sort((a, b) => {
   if (!!a.task.flag !== !!b.task.flag) return a.task.flag ? -1 : 1;
   return 0;
 });
-// Everything planned on day D: [{task, occ}]
-W.dayItems = D => sortItems(S().tasks.filter(t => W.occursOn(t, D)).map(t => ({ task: t, occ: D })));
+// Everything planned on day D: [{task, occ}] (occ = the day it was set for; it may have moved here from a day off)
+W.dayItems = function (D) {
+  const out = [];
+  S().tasks.forEach(t => {
+    if (t.repeat === 'none' || t.repeat === 'daily' || !t.repeat) { if (W.occursOn(t, D)) out.push({ task: t, occ: D }); return; }
+    for (let i = 0; i <= 14; i++) { const o = W.addDays(D, -i); if (W.occursOn(t, o) && W.effDate(t, o) === D) out.push({ task: t, occ: o }); }
+  });
+  return sortItems(out);
+};
 // Overdue: one-offs past their date, and weekly/2-weekly/monthly missed earlier this period. Daily ones just disappear.
 W.overdueItems = function () {
   const t0 = W.today(), out = [];
   S().tasks.forEach(t => {
     if (t.repeat === 'none' || !t.repeat) { if (!t.done && t.date && t.date < t0) out.push({ task: t, occ: t.date }); return; }
     if (t.repeat === 'daily') return;
-    for (let i = 31; i >= 1; i--) {
-      const d = W.addDays(t0, -i);
-      if (W.occursOn(t, d) && !W.isDone(t, d) && W.periodEnd(t, d) >= t0) out.push({ task: t, occ: d });
+    for (let i = 45; i >= 1; i--) {
+      const o = W.addDays(t0, -i);
+      if (!W.occursOn(t, o) || W.isDone(t, o)) continue;
+      const e = W.effDate(t, o);
+      if (e < t0 && (W.periodEnd(t, o) >= t0 || e >= W.addDays(t0, -1))) out.push({ task: t, occ: o });
     }
   });
   return out.sort((a, b) => (!!b.task.flag - !!a.task.flag) || (a.occ < b.occ ? -1 : 1));
+};
+// Flexible tasks that still need a day this week / fortnight / month
+W.needsDay = function () {
+  const t0 = W.today();
+  return S().tasks.filter(t => {
+    if (!W.isFlex(t)) return false;
+    const ps = W.planPeriod(t);
+    if (W.periodEnd(t, ps) < (t.start || t0)) return false;
+    const pl = (t.placed || {})[ps];
+    return !pl && !doneInPeriod(t, ps);
+  });
+};
+// Pick (or change) the day for a flexible task this period
+W.placeSheet = function (t) {
+  const t0 = W.today(), ps = W.planPeriod(t), pe = W.periodEnd(t, ps);
+  const nextP = ps > t0;
+  const per = (nextP ? 'next ' : 'this ') + (t.repeat === 'monthly' ? 'month' : t.repeat === 'biweekly' ? 'fortnight' : 'week');
+  const set = v => { t.placed = t.placed || {}; t.placed[ps] = v; W.save(); W.close(); W.render(); };
+  const days = []; for (let d = nextP ? ps : t0; d <= pe; d = W.addDays(d, 1)) if (!isOff(d)) days.push(d);
+  const cur = (t.placed || {})[ps];
+  W.sheet(t.title, [
+    h('p', { class: 'muted' }, 'Which day will you do it ' + per + '?'),
+    h('div', {}, days.map(d => h('span', { class: 'chip day-chip' + (cur === d ? ' on' : '') + (W.isShift(d) ? '' : ' dim'), onclick: () => set(d) },
+      h('b', {}, W.relDay(d) === 'Today' || W.relDay(d) === 'Tomorrow' ? W.relDay(d) : W.dayName(d) + ' ' + W.parse(d).getDate()),
+      h('small', {}, W.isShift(d) ? W.fmtShift(S().shifts[d]) : 'no shift yet')))),
+    !days.length ? h('p', { class: 'muted small' }, 'No working days left ' + per + '.') : null,
+    h('div', { class: 'grid2', style: 'margin-top:10px' },
+      nextP ? null : h('button', { class: 'btn ghost', onclick: () => { W.setDone(t, t0, true); t.placed = t.placed || {}; t.placed[ps] = t0; W.save(); W.close(); W.render(); W.toast('Done ✓'); } }, '✓ Done already'),
+      h('button', { class: 'btn ghost', onclick: () => set('skip') }, 'Skip ' + per)),
+    cur ? h('button', { class: 'btn danger block', onclick: () => { delete t.placed[ps]; W.save(); W.close(); W.render(); } }, 'Unplan it') : null
+  ]);
+};
+W.needsDaySection = function () {
+  const list = W.needsDay();
+  if (!list.length) return null;
+  return h('div', { class: 'card needs' },
+    h('div', { class: 'needs-head' }, '📌 Pick a day for ' + (list.length === 1 ? 'this job' : 'these ' + list.length + ' jobs'), h('div', { class: 'muted small', style: 'font-weight:600' }, 'Flexible jobs. Choose when you\'ll do them.')),
+    list.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => W.placeSheet(t) },
+      h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title),
+        h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]), (W.planPeriod(t) > W.today() ? (t.repeat === 'monthly' ? 'next month' : 'next ' + (t.repeat === 'biweekly' ? 'fortnight' : 'week')) : 'by ' + W.niceDate(W.periodEnd(t, W.today()))))),
+      h('span', { class: 'pill blue' }, 'Pick day ›'))));
 };
 W.openTeam = () => S().team.filter(x => !x.done);
 
@@ -111,7 +191,7 @@ W.parseQuick = function (text) {
 
   if (take(/\s(every\s+shift|each\s+shift|daily|every\s*day|each\s+day)(?=\s)/i)) r.repeat = 'daily';
   else if (take(/\s(every\s+other(\s+week)?|fortnightly|bi-?weekly|every\s+(?:2|two)\s+weeks)(?=\s)/i)) { r.repeat = 'biweekly'; r.days = grabDays(); }
-  else if (take(/\s(monthly|every\s+month)(?=\s)/i)) { r.repeat = 'monthly'; const d = take(/\s(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?=\s)/i); r.mday = d ? Math.min(31, +d[1]) : W.parse(t0).getDate(); }
+  else if (take(/\s(monthly|every\s+month)(?=\s)/i)) { r.repeat = 'monthly'; const d = take(/\s(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?=\s)/i); r.mday = d ? Math.min(31, +d[1]) : 0; }
   else if (take(/\s(weekly|every\s+week|each\s+week)(?=\s)/i)) { r.repeat = 'weekly'; r.days = grabDays(); }
   else if ((m = s.match(new RegExp('\\s(?:every|each)\\s+' + DAYRE, 'i')))) { s = s.replace(/\s(every|each)\s+/i, ' '); r.repeat = 'weekly'; r.days = grabDays(); }
 
@@ -138,7 +218,7 @@ W.parseQuick = function (text) {
   function hhmm(hr, mn, ap) { ap = (ap || '').toLowerCase(); if (ap === 'pm' && hr < 12) hr += 12; if (ap === 'am' && hr === 12) hr = 0; return String(Math.min(hr, 23)).padStart(2, '0') + ':' + String(Math.min(mn, 59)).padStart(2, '0'); }
   function ymd(d, mo) { const now = W.parse(t0); let x = new Date(now.getFullYear(), mo, d); if (W.dstr(x) < t0) x = new Date(now.getFullYear() + 1, mo, d); return W.dstr(x); }
 };
-const newTask = p => Object.assign({ id: W.uid(), title: '', notes: '', repeat: 'none', date: '', days: [], mday: 1, time: '', flag: false, clean: false, done: false, doneAt: '', doneDates: {}, start: W.today() }, p || {});
+const newTask = p => Object.assign({ id: W.uid(), title: '', notes: '', repeat: 'none', date: '', days: [], mday: 0, time: '', flag: false, clean: false, done: false, doneAt: '', doneDates: {}, start: W.today() }, p || {});
 W.usePreset = p => W.editTask(null, { title: p.title, notes: p.notes, repeat: p.repeat, days: (p.days || []).slice(), mday: p.mday, time: p.time, flag: p.flag, clean: p.clean });
 const describe = p => [
   p.repeat === 'none' ? '📅 ' + (p.date ? W.relDay(p.date) + (W.daysBetween(W.today(), p.date) > 6 ? '' : ' · ' + W.shortDate(p.date)) : 'No date') : '🔁 ' + W.repeatLabel(p),
@@ -161,7 +241,6 @@ W.quickBox = function (defaultDate, mode) {
     if (!parsed) return W.openSectionForm(mode, defaultDate);
     if (!parsed.title) return W.toast('Add what the task is');
     if (mode === 'repeat' && parsed.repeat === 'none') { W.toast('Choose how often'); return more(); }
-    if ((parsed.repeat === 'weekly' || parsed.repeat === 'biweekly') && !parsed.days.length) { W.toast('Pick which day'); return more(); }
     S().tasks.push(newTask(parsed)); W.save(); input.value = ''; W.toast('Added'); W.render();
   };
   function more() { const p = parsed || { title: input.value.trim(), date: defaultDate || '' }; W.editTask(null, p, null, mode === 'repeat' && p.repeat === 'none' ? 'repeat' : undefined); input.value = ''; }
@@ -183,7 +262,7 @@ W.editTask = function (t, preset, onSave, mode) {
   const title = h('input', { value: d.title, placeholder: 'What needs doing?' });
   const date = h('input', { type: 'date', value: d.date });
   const time = h('input', { type: 'time', value: d.time });
-  const mday = h('input', { type: 'number', inputmode: 'numeric', min: 1, max: 31, value: d.mday || W.parse(W.today()).getDate() });
+  const mday = h('input', { type: 'number', inputmode: 'numeric', min: 1, max: 31, value: d.mday || '', placeholder: 'Leave blank to pick each month' });
   const notes = h('textarea', { value: d.notes, placeholder: 'Notes (optional)' });
   const when = h('div');
   const drawWhen = () => W.fill(when,
@@ -191,8 +270,8 @@ W.editTask = function (t, preset, onSave, mode) {
     d.repeat === 'daily' ? h('p', { class: 'muted small' }, 'Shows on every day you have a shift on the rota. If it isn\'t done, it just drops off. A fresh one comes next shift.') : null,
     d.repeat === 'weekly' || d.repeat === 'biweekly' ? W.field('On which day(s)', h('div', {},
       WEEK_ORDER.map(n => h('span', { class: 'chip' + (d.days.includes(n) ? ' on' : ''), onclick: e => { d.days = d.days.includes(n) ? d.days.filter(x => x !== n) : d.days.concat(n); e.target.classList.toggle('on'); } }, DAY_SHORT[n])),
-      h('p', { class: 'muted small' }, 'If it\'s not done on the day, it moves to Overdue until it\'s done or the ' + (d.repeat === 'weekly' ? 'week' : 'fortnight') + ' ends.'))) : null,
-    d.repeat === 'monthly' ? W.field('Day of the month', mday) : null);
+      h('p', { class: 'muted small' }, 'Optional. Leave blank if you\'ll decide the day each ' + (d.repeat === 'weekly' ? 'week' : 'fortnight') + '. You\'ll get a reminder to pick one. If it lands on a day off, it moves to your next shift.'))) : null,
+    d.repeat === 'monthly' ? W.field('Day of the month (optional)', mday) : null);
   const flagBtn = h('span', { class: 'chip' + (d.flag ? ' on' : ''), onclick: e => { d.flag = !d.flag; e.target.classList.toggle('on'); } }, '🚩 Important');
   const cleanBtn = h('span', { class: 'chip' + (d.clean ? ' on' : ''), onclick: e => { d.clean = !d.clean; e.target.classList.toggle('on'); } }, '🧽 Cleaning');
   let asPreset = false;
@@ -208,8 +287,7 @@ W.editTask = function (t, preset, onSave, mode) {
     h('button', { class: 'btn block', onclick: () => {
       if (!title.value.trim()) return W.toast('Add a task name');
       if (!d.repeat) return W.toast('Choose how often');
-      if ((d.repeat === 'weekly' || d.repeat === 'biweekly') && !d.days.length) return W.toast('Pick at least one day');
-      Object.assign(d, { title: title.value.trim(), date: d.repeat === 'none' ? date.value : '', time: time.value, notes: notes.value.trim(), mday: Math.min(31, Math.max(1, Number(mday.value) || 1)) });
+      Object.assign(d, { title: title.value.trim(), date: d.repeat === 'none' ? date.value : '', time: time.value, notes: notes.value.trim(), mday: mday.value ? Math.min(31, Math.max(1, Number(mday.value))) : 0 });
       if (isNew) S().tasks.push(d); else Object.assign(t, d);
       if (asPreset) { S().presets.push({ id: W.uid(), title: d.title, notes: d.notes, repeat: d.repeat, days: d.days.slice(), mday: d.mday, time: d.time, flag: d.flag, clean: d.clean }); W.toast('Saved as a preset'); }
       if (onSave) onSave(d);
@@ -231,7 +309,9 @@ W.taskRow = function (it, opts) {
       h('div', { class: 't' }, t.flag ? h('span', { class: 'flag' }, '🚩 ') : null, t.title),
       h('div', { class: 'sub' },
         t.time ? h('span', { class: 'pill time' }, t.time) : null,
-        opts.overdue ? h('span', { class: 'pill red' }, (t.repeat === 'none' ? 'Was due ' : 'Missed ') + W.relDay(it.occ).toLowerCase()) : null,
+        opts.overdue ? h('span', { class: 'pill red' }, (t.repeat === 'none' ? 'Was due ' : 'Missed ') + W.relDay(W.effDate(t, it.occ)).toLowerCase()) : null,
+        t.repeat !== 'none' && t.repeat !== 'daily' && it.occ && W.effDate(t, it.occ) !== it.occ && !opts.overdue ? h('span', { class: 'pill' }, 'Moved from ' + W.dayName(it.occ) + ' (day off)') : null,
+        W.isFlex(t) && !done ? h('span', { class: 'pill blue', onclick: e => { e.stopPropagation(); W.placeSheet(t); } }, '📌 Change day') : null,
         opts.showDate && !opts.overdue && t.repeat === 'none' && t.date ? h('span', { class: 'pill' }, W.niceDate(t.date)) : null,
         t.repeat !== 'none' ? h('span', { class: 'pill' }, '🔁 ' + W.repeatLabel(t)) : null,
         t.clean ? h('span', { class: 'pill' }, '🧽') : null,
@@ -318,6 +398,7 @@ W.views.tasks = function (app) {
     const nodate = s.tasks.filter(x => x.repeat === 'none' && !x.done && !x.date);
     const daily = s.tasks.filter(x => x.repeat === 'daily');
     body = [
+      W.needsDaySection(),
       overdue.length ? [head('Overdue', overdue.length), h('div', { class: 'card overdue' }, overdue.map(i => W.taskRow(i, { overdue: true })))] : null,
       days.map(([d, items]) => [h('h2', {}, h('span', {}, W.relDay(d) + (W.daysBetween(t0, d) < 7 && W.daysBetween(t0, d) > 1 ? ' · ' + W.shortDate(d) : '')), !W.isShift(d) && d !== t0 ? h('span', { class: 'muted small', style: 'text-transform:none;letter-spacing:0' }, 'no shift') : null),
         card(W.planList(items))]),
@@ -374,7 +455,7 @@ W.openSectionForm = function (mode, date) {
 };
 
 
-function nextOcc(t) { for (let i = 0; i < 70; i++) { const d = W.addDays(W.today(), i); if (W.occursOn(t, d)) return W.relDay(d) + (i > 1 && i < 7 ? ' ' + W.shortDate(d) : ''); } return '—'; }
+function nextOcc(t) { if (W.isFlex(t)) return 'you pick the day'; for (let i = 0; i < 70; i++) { const d = W.addDays(W.today(), i); if (W.occursOn(t, d)) { const e = W.effDate(t, d); return W.relDay(e) + (W.daysBetween(W.today(), e) > 1 && W.daysBetween(W.today(), e) < 7 ? ' ' + W.shortDate(e) : ''); } } return '—'; }
 function presetSection() {
   const pres = S().presets;
   return [h('h2', {}, h('span', {}, '⭐ Presets'), pres.length ? h('span', { class: 'count' }, pres.length) : null),
@@ -389,19 +470,30 @@ function repeatRow(t) {
   let status, dots = [];
   if (t.repeat === 'daily') {
     const shifts = []; for (let i = 0; i < 60 && shifts.length < 6; i++) { const d = W.addDays(t0, -i); if (d >= (t.start || t0) && W.isShift(d)) shifts.push(d); }
-    status = W.isShift(t0) ? (W.isDone(t, t0) ? ['ok', '✓ Done today'] : ['', 'To do today']) : ['', 'Next shift'];
+    status = W.isShift(t0) ? (W.isDone(t, t0) ? ['ok', '✓ Done today'] : ['', 'To do today']) : ['', 'Next shift (day off today)'];
     dots = shifts.slice(W.isShift(t0) ? 1 : 0, (W.isShift(t0) ? 1 : 0) + 5).reverse().map(d => W.isDone(t, d));
   } else {
-    const len = t.repeat === 'monthly' ? 0 : t.repeat === 'weekly' ? 7 : 14;
-    const periodOf = d => t.repeat === 'monthly' ? d.slice(0, 7) : W.periodEnd(t, d);
-    const occs = []; for (let i = 0; i < 130; i++) { const d = W.addDays(t0, -i); if (W.occursOn(t, d)) occs.push(d); }
-    const curEnd = periodOf(t0);
-    const thisP = []; for (let i = -40; i <= 40; i++) { const d = W.addDays(t0, i); if (W.occursOn(t, d) && periodOf(d) === curEnd) thisP.push(d); }
-    const missed = thisP.filter(d => d < t0 && !W.isDone(t, d)), doneP = thisP.filter(d => W.isDone(t, d)), next = thisP.filter(d => d >= t0 && !W.isDone(t, d));
-    status = missed.length ? ['red', '⚠ Not done yet (' + missed.map(d => W.dayName(d)).join(', ') + ')'] : next.length ? ['warn', '⏳ Due ' + W.relDay(next[0]).toLowerCase()] : doneP.length ? ['ok', '✓ Done ' + W.dayName(Object.values(t.doneDates || {}).sort().pop() || t0)] : ['', 'Next: ' + nextOcc(t)];
-    const byP = {}; occs.filter(d => periodOf(d) !== curEnd).forEach(d => { (byP[periodOf(d)] = byP[periodOf(d)] || []).push(d); });
-    dots = Object.keys(byP).sort().slice(-4).map(k => byP[k].every(d => W.isDone(t, d)));
-    void len;
+    const ps = W.periodStart(t, t0), pe = W.periodEnd(t, t0);
+    const per = t.repeat === 'monthly' ? 'month' : t.repeat === 'biweekly' ? 'fortnight' : 'week';
+    const occs = []; for (let d = ps; d <= pe; d = W.addDays(d, 1)) if (W.occursOn(t, d)) occs.push(d);
+    const doneOn = () => W.dayName(Object.values(t.doneDates || {}).filter(x => x >= ps).sort().pop() || t0);
+    if (W.isFlex(t)) {
+      const pl = (t.placed || {})[ps];
+      status = doneInPeriod(t, ps) ? ['ok', '✓ Done ' + doneOn()] : pl === 'skip' ? ['', 'Skipped this ' + per]
+        : pl ? (W.effDate(t, pl) < t0 ? ['red', '⚠ Not done (was ' + W.dayName(W.effDate(t, pl)) + ')'] : ['warn', '⏳ Planned ' + W.relDay(W.effDate(t, pl)).toLowerCase()])
+        : ['red', '📌 Needs a day'];
+    } else {
+      const missed = occs.filter(d => W.effDate(t, d) < t0 && !W.isDone(t, d)), next = occs.filter(d => W.effDate(t, d) >= t0 && !W.isDone(t, d));
+      status = missed.length ? ['red', '⚠ Not done yet (' + missed.map(d => W.dayName(W.effDate(t, d))).join(', ') + ')'] : next.length ? ['warn', '⏳ Due ' + W.relDay(W.effDate(t, next[0])).toLowerCase()] : occs.some(d => W.isDone(t, d)) ? ['ok', '✓ Done ' + doneOn()] : ['', 'Next: ' + nextOcc(t)];
+    }
+    // last 4 periods: green = done, red = missed
+    let p0 = ps;
+    for (let i = 0; i < 4; i++) {
+      p0 = W.periodStart(t, W.addDays(p0, -1));
+      if (W.periodEnd(t, p0) < (t.start || t0)) break;
+      if (W.isFlex(t)) { if ((t.placed || {})[p0] !== 'skip') dots.unshift(doneInPeriod(t, p0)); }
+      else { const os = []; for (let d = p0, e = W.periodEnd(t, p0); d <= e; d = W.addDays(d, 1)) if (W.occursOn(t, d)) os.push(d); if (os.length) dots.unshift(os.every(d => W.isDone(t, d))); }
+    }
   }
   return h('div', { class: 'item', style: 'cursor:pointer', onclick: () => W.editTask(t) },
     h('div', { class: 'grow' },
