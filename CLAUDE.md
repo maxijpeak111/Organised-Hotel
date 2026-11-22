@@ -16,6 +16,7 @@ Separate from the PT app — do not link or merge them.
 - `js/views.js` editors, Tasks (incl. "asked of me" via `from`), Rota (shifts + events), Clean (recurring, `every` days, `last` done), Ideas, Settings
 - `js/stock.js` stock list: tap to flag low → order list; "Order placed" saves to `orders` history; "usually ordered" = on ≥50% of last 6 orders
 - `js/app.js` router + nav. Adding a JS file: add to `index.html` and `SHELL` in `sw.js`, bump `V`.
+- Every release: bump `?v=N` on all script/css links in `index.html` and in `SHELL` in `sw.js`, and bump `V` in `sw.js`. Stops phones mixing old and new files (that caused a blank page once).
 
 ## Rules
 - Friendly, light look in the hotel colours: blue (menus/uniform) as main colour, yellow (logo) for highlights, warm brown (building) for text/headings, cream + white backgrounds. Big tap targets, few taps. Relative paths only.
