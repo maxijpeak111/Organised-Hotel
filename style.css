@@ -72,11 +72,11 @@ input[type=checkbox]:checked{background:var(--ok) url("data:image/svg+xml,%3Csvg
 .sitem .sub{color:var(--faint);font-size:12px}
 .fab{position:fixed;right:max(18px,calc(50% - 302px));bottom:calc(env(safe-area-inset-bottom) + 78px);width:58px;height:58px;border-radius:50%;background:var(--blue);color:#fff;border:0;font-size:32px;font-weight:400;line-height:1;box-shadow:0 6px 18px rgba(31,95,174,.35);z-index:15;cursor:pointer}
 #nav{position:fixed;left:0;right:0;bottom:0;background:rgba(255,253,249,.96);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-#nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;font-size:10.5px;font-weight:700;color:var(--faint);text-decoration:none;position:relative}
+#nav a{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;font-size:10px;font-weight:700;color:var(--faint);text-decoration:none;position:relative}
 #nav a svg{width:24px;height:24px}
 #nav a.on{color:var(--blue)}
 #nav a.on svg{color:var(--blue)}
-#nav a i{position:absolute;top:4px;left:calc(50% + 8px);background:var(--yellow);color:var(--text);font-style:normal;font-size:10px;font-weight:800;border-radius:999px;padding:1px 5px;min-width:16px;text-align:center}
+#nav a i{position:absolute;top:4px;left:calc(50% + 6px);background:var(--yellow);color:var(--text);font-style:normal;font-size:10px;font-weight:800;border-radius:999px;padding:1px 5px;min-width:16px;text-align:center}
 #modal .backdrop{position:fixed;inset:0;background:rgba(59,42,30,.45);z-index:40}
 #modal .sheet{position:fixed;left:0;right:0;bottom:0;max-height:90vh;background:var(--panel);border-top:5px solid var(--yellow);border-radius:22px 22px 0 0;z-index:41;display:flex;flex-direction:column;max-width:640px;margin:0 auto}
 .sheet-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:800}
@@ -95,3 +95,30 @@ input[type=checkbox]:checked{background:var(--ok) url("data:image/svg+xml,%3Csvg
 .seg button{color:var(--muted)}
 .empty{background:rgba(255,255,255,.5)}
 .ev b{color:var(--blue)}
+
+.icon-btn[disabled]{opacity:.35}
+.info-line{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;font-weight:700;color:var(--brown);margin:10px 0 2px;cursor:pointer}
+.day-nav{display:flex;align-items:center;gap:8px;margin:6px 0 14px}
+.day-nav h1{margin:0;font-size:21px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day-nav .icon-btn{margin:0}
+.overview{background:var(--panel);border:2px solid var(--blue);border-radius:22px;overflow:hidden;box-shadow:0 4px 16px rgba(31,95,174,.12);margin-bottom:6px}
+.ov-head{background:var(--blue);color:#fff;padding:16px 16px 14px;display:flex;justify-content:space-between;align-items:center}
+.ov-title{font-size:22px;font-weight:800}
+.ov-sub{font-size:14px;opacity:.9;margin-top:2px}
+.ov-num{font-size:30px;font-weight:800;color:var(--yellow)}
+.ov-bar{height:8px;background:var(--blue-soft)}
+.ov-bar>i{display:block;height:100%;background:var(--yellow);transition:width .3s}
+.ov-list{padding:2px 14px}
+.ov-list .item .t{font-size:17px}
+.ov-empty{padding:18px 16px;color:var(--muted);text-align:center}
+.ov-foot{padding:12px 16px;border-top:1px solid var(--line);background:var(--panel2);font-weight:700;color:var(--brown);font-size:14px;cursor:pointer}
+.sub-head{font-size:13px;font-weight:800;color:var(--muted);margin:12px 0 6px}
+.up-day{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);padding:12px 2px 0}
+.ev-icon{width:40px;height:40px;border-radius:12px;background:var(--yellow-soft);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+.jnote{padding:12px 2px;border-bottom:1px solid var(--line)}
+.jnote:last-child{border-bottom:0}
+.jnote.sorted .jtext{color:var(--muted)}
+.jtime{font-size:12px;font-weight:800;color:var(--blue)}
+.jtext{margin:4px 0 8px;white-space:pre-wrap;cursor:pointer;font-size:16px}
+.jactions .chip{padding:6px 11px;font-size:13px;margin:0 4px 6px 0}
+.review{background:var(--yellow-soft);border-color:#f1d77d}

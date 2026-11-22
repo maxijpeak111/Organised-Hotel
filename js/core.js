@@ -37,7 +37,8 @@ function defaults() {
     cleaning: [],   // {id, title, area, every, last}
     stock: null,    // [{id, name, items:[{id, name, low}]}]
     orders: [],     // {id, date, items:[name]}
-    ideas: []       // {id, title, notes, cat, status, created}
+    ideas: [],      // {id, title, notes, cat, status, created}
+    journal: {}     // date -> [{id, time, text, sorted}]
   };
 }
 function load() {
@@ -114,6 +115,8 @@ W.seg = (opts, cur, onPick) => h('div', { class: 'seg' }, opts.map(([v, l]) => h
 
 /* ---------- shared logic ---------- */
 W.cleanDue = c => c.last ? W.addDays(c.last, Number(c.every) || 1) : W.today();
+// Is cleaning job c due on date D? (overdue jobs count as due today; repeats every N days after that)
+W.cleanOn = (c, D) => { const t = W.today(); let d0 = W.cleanDue(c); if (d0 < t) d0 = t; if (D < d0) return false; return W.daysBetween(d0, D) % (Number(c.every) || 1) === 0; };
 W.cleanOverdue = c => W.daysBetween(W.today(), W.cleanDue(c)); // <0 overdue, 0 due today
 W.openTasks = () => W.state.tasks.filter(t => !t.done);
 W.lowItems = () => W.state.stock.flatMap(s => s.items.filter(i => i.low).map(i => ({ ...i, section: s.name })));

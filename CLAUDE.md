@@ -12,10 +12,14 @@ Separate from the PT app — do not link or merge them.
 ## Files
 - `js/stocklist.js` starting drinks list + optional cleaning template (must load before core.js)
 - `js/core.js` state, dates, DOM helper `W.h` / `W.fill`, sheets, toasts, share
-- `js/views.js` Today, Tasks (incl. "asked of me" via `from`), Rota (shifts + events), Clean (recurring, `every` days, `last` done), Ideas, Settings
+- `js/today.js` Today page (day-by-day, ‹ › and swipe): info line, Your day overview (tasks + progress), In the hotel (events with `kind`: function/event/busy/delivery/meeting/other, plus 'Get ready for' next 7 days), Cleaning (`W.cleanOn`), Coming up (next 7 days, non-daily cleaning shown once); and the Journal tab (`state.journal[date] = [{id,time,text,sorted}]`, notes turned into Task/Hotel/Idea at end of shift)
+- `js/views.js` editors, Tasks (incl. "asked of me" via `from`), Rota (shifts + events), Clean (recurring, `every` days, `last` done), Ideas, Settings
 - `js/stock.js` stock list: tap to flag low → order list; "Order placed" saves to `orders` history; "usually ordered" = on ≥50% of last 6 orders
 - `js/app.js` router + nav. Adding a JS file: add to `index.html` and `SHELL` in `sw.js`, bump `V`.
 
 ## Rules
 - Friendly, light look in the hotel colours: blue (menus/uniform) as main colour, yellow (logo) for highlights, warm brown (building) for text/headings, cream + white backgrounds. Big tap targets, few taps. Relative paths only.
 - Build DOM with `W.h` (text is always text, never HTML).
+
+## Owner's preferences
+- Shift time pickers start at 00:00. No stock-order banner on Today (stock badge on the tab is enough).
