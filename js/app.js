@@ -25,8 +25,10 @@ W.render = function () {
   const app = document.getElementById('app');
   const y = window.scrollY;
   W.views[cur](app);
-  if (cur !== 'stock' && cur !== 'journal') app.append(h('button', { class: 'fab', onclick: () => {
-    if (cur === 'ideas') W.editIdea(); else if (cur === 'rota') W.editEvent(); else W.quickAdd();
+  const tt = cur === 'tasks' ? W.tasksTabNow() : '';
+  if (cur !== 'stock' && cur !== 'journal' && tt !== 'done') app.append(h('button', { class: 'fab', onclick: () => {
+    if (cur === 'tasks') W.openSectionForm(tt === 'repeat' ? 'repeat' : tt === 'team' ? 'team' : 'oneoff');
+    else if (cur === 'ideas') W.editIdea(); else if (cur === 'rota') W.editEvent(); else W.quickAdd();
   }, 'aria-label': 'Add' }, '+'));
   W.fill(document.getElementById('nav'), TABS.map(([id, label, icon]) => {
     const n = badge(id);

@@ -33,4 +33,5 @@ Separate from the PT app — do not link or merge them.
 - Tasks are the heart of the app: one list, chronological, timed tasks above untimed. No "asked of me"; notes cover who asked.
 - Plan first, then Overdue. Flag = one level (🚩). Done tasks stay until deleted. Functions stay separate ("In the hotel") with full details.
 - No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
+- Each Tasks section's + (round button and the + by the typing box) opens that section's own form: To do → one-off task + date (no repeat options); Repeating → must choose how often (nothing pre-picked); Team → hand out task. No + on Done. Date chips start unselected on new tasks.
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.
