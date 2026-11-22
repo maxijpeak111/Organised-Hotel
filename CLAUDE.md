@@ -36,6 +36,7 @@ Separate from the PT app — do not link or merge them.
 - Plan first, then Overdue. Flag = one level (🚩). Done tasks stay until deleted. Functions stay separate ("In the hotel") with full details.
 - No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
 - Each Tasks section's + (round button and the + by the typing box) opens that section's own form: To do → one-off task + date (no repeat options); Repeating → must choose how often (nothing pre-picked); Team → hand out task. No + on Done. Date chips start unselected on new tasks.
-- Weekly jobs don't need a set day (owner decides as the week begins; app reminds him to place them). No tasks on days off.
+- Weekly jobs don't need a set day: they sit in a calm "Weekly jobs to plan" pool (`W.poolFor(D)`), and each day's plan has "📋 Add a weekly job to this day" to drop one in (`W.addToDaySheet`). Statuses use the planning period (`W.planPeriod`), never an alarm. No tasks on days off.
+- Coming up never repeats a task that's already in that day's plan or Overdue.
 - Deleting a repeating task from a day (To do / Today / Rota) removes only that occurrence (`t.skip[occ]`); deleting it for good is only in Tasks → Repeating.
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.

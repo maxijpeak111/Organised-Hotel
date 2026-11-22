@@ -30,12 +30,13 @@ W.views.today = function (app) {
   const overdue = isToday ? W.overdueItems() : [];
   const team = W.openTeam().filter(x => x.date === D || (isToday && (!x.date || x.date < t)));
   const events = W.dayEvents(D);
+  const pool = W.poolFor(D);
   const prep = s.events.filter(e => e.date > D && e.date <= W.addDays(D, 7)).sort((a, b) => (a.date + (a.time || '')) < (b.date + (b.time || '')) ? -1 : 1);
   const hr = new Date().getHours();
   const title = isToday ? (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ' 👋' : W.relDay(D);
 
   // Coming up: next 7 days (not daily ones), each repeating task shown once
-  const seen = new Set();
+  const seen = new Set(items.map(i => i.task.id).concat(overdue.map(i => i.task.id)));
   const upDays = [...Array(7)].map((_, i) => W.addDays(D, i + 1)).map(d => ({
     d, items: W.dayItems(d).filter(i => i.task.repeat !== 'daily' && !W.isDone(i.task, i.occ) && !seen.has(i.task.id) && seen.add(i.task.id))
   })).filter(x => x.items.length);
@@ -68,9 +69,10 @@ W.views.today = function (app) {
           h('div', { class: 'ov-sub' }, total ? done + ' of ' + total + ' done' : 'Nothing yet')),
         total ? h('div', { class: 'ov-num' }, pct + '%') : null),
       total ? h('div', { class: 'ov-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
-      total ? h('div', { class: 'ov-list' }, W.planList(items)) : h('div', { class: 'ov-empty' }, planNote)),
+      total ? h('div', { class: 'ov-list' }, W.planList(items)) : h('div', { class: 'ov-empty' }, planNote),
+      pool.length && (W.isShift(D) || !s.shifts[D]) ? h('div', { class: 'ov-foot', onclick: () => W.addToDaySheet(D) }, '📋 Add a weekly job to this day (' + pool.length + ' to plan) ›') : null),
 
-    // FLEXIBLE JOBS THAT NEED A DAY
+    // WEEKLY JOBS STILL TO PLAN
     isToday ? W.needsDaySection() : null,
 
     // OVERDUE

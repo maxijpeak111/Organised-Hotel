@@ -117,6 +117,24 @@ W.needsDay = function () {
     return !pl && !doneInPeriod(t, ps);
   });
 };
+// Flexible jobs still to plan in the week/fortnight/month that day D falls in
+W.poolFor = function (D) {
+  return S().tasks.filter(t => {
+    if (!W.isFlex(t)) return false;
+    const ps = W.periodStart(t, D);
+    if (W.periodEnd(t, ps) < (t.start || W.today())) return false;
+    return !(t.placed || {})[ps] && !doneInPeriod(t, ps);
+  });
+};
+W.addToDaySheet = function (D) {
+  const pool = W.poolFor(D);
+  W.sheet('Add to ' + W.relDay(D), [
+    h('p', { class: 'muted' }, 'Weekly jobs you haven\'t planned yet. Tap one to do it on ' + W.niceDate(D) + '.'),
+    W.card(pool.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => { t.placed = t.placed || {}; t.placed[W.periodStart(t, D)] = D; W.save(); W.close(); W.render(); W.toast('Added to ' + W.relDay(D).toLowerCase()); } },
+      h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title), h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]))),
+      h('span', { class: 'pill blue' }, '+ Add'))))
+  ]);
+};
 // Pick (or change) the day for a flexible task this period
 W.placeSheet = function (t) {
   const t0 = W.today(), ps = W.planPeriod(t), pe = W.periodEnd(t, ps);
@@ -141,11 +159,11 @@ W.needsDaySection = function () {
   const list = W.needsDay();
   if (!list.length) return null;
   return h('div', { class: 'card needs' },
-    h('div', { class: 'needs-head' }, '📌 Pick a day for ' + (list.length === 1 ? 'this job' : 'these ' + list.length + ' jobs'), h('div', { class: 'muted small', style: 'font-weight:600' }, 'Flexible jobs. Choose when you\'ll do them.')),
+    h('div', { class: 'needs-head' }, '📋 Weekly jobs to plan', h('div', { class: 'muted small', style: 'font-weight:600' }, 'Tap one to choose its day, or use "Add a weekly job" on any day\'s plan.')),
     list.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => W.placeSheet(t) },
       h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title),
         h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]), (W.planPeriod(t) > W.today() ? (t.repeat === 'monthly' ? 'next month' : 'next ' + (t.repeat === 'biweekly' ? 'fortnight' : 'week')) : 'by ' + W.niceDate(W.periodEnd(t, W.today()))))),
-      h('span', { class: 'pill blue' }, 'Pick day ›'))));
+      h('span', { class: 'pill blue' }, 'Choose day ›'))));
 };
 W.openTeam = () => S().team.filter(x => !x.done);
 
@@ -316,7 +334,7 @@ W.taskRow = function (it, opts) {
         t.time ? h('span', { class: 'pill time' }, t.time) : null,
         opts.overdue ? h('span', { class: 'pill red' }, (t.repeat === 'none' ? 'Was due ' : 'Missed ') + W.relDay(W.effDate(t, it.occ)).toLowerCase()) : null,
         t.repeat !== 'none' && t.repeat !== 'daily' && it.occ && W.effDate(t, it.occ) !== it.occ && !opts.overdue ? h('span', { class: 'pill' }, 'Moved from ' + W.dayName(it.occ) + ' (day off)') : null,
-        W.isFlex(t) && !done ? h('span', { class: 'pill blue', onclick: e => { e.stopPropagation(); W.placeSheet(t); } }, '📌 Change day') : null,
+        W.isFlex(t) && !done ? h('span', { class: 'pill blue', onclick: e => { e.stopPropagation(); W.placeSheet(t); } }, '📅 Change day') : null,
         opts.showDate && !opts.overdue && t.repeat === 'none' && t.date ? h('span', { class: 'pill' }, W.niceDate(t.date)) : null,
         t.repeat !== 'none' ? h('span', { class: 'pill' }, '🔁 ' + W.repeatLabel(t)) : null,
         t.clean ? h('span', { class: 'pill' }, '🧽') : null,
@@ -483,10 +501,10 @@ function repeatRow(t) {
     const occs = []; for (let d = ps; d <= pe; d = W.addDays(d, 1)) if (W.occursOn(t, d)) occs.push(d);
     const doneOn = () => W.dayName(Object.values(t.doneDates || {}).filter(x => x >= ps).sort().pop() || t0);
     if (W.isFlex(t)) {
-      const pl = (t.placed || {})[ps];
-      status = doneInPeriod(t, ps) ? ['ok', '✓ Done ' + doneOn()] : pl === 'skip' ? ['', 'Skipped this ' + per]
-        : pl ? (W.effDate(t, pl) < t0 ? ['red', '⚠ Not done (was ' + W.dayName(W.effDate(t, pl)) + ')'] : ['warn', '⏳ Planned ' + W.relDay(W.effDate(t, pl)).toLowerCase()])
-        : ['red', '📌 Needs a day'];
+      const pp = W.planPeriod(t), pl = (t.placed || {})[pp], nxt = pp > ps ? 'next ' : 'this ';
+      status = doneInPeriod(t, pp) ? ['ok', '✓ Done ' + doneOn()] : pl === 'skip' ? ['', 'Skipped ' + nxt + per]
+        : pl ? (W.effDate(t, pl) < t0 ? ['red', '⚠ Not done (was ' + W.dayName(W.effDate(t, pl)) + ')'] : ['ok', '📅 Planned ' + W.relDay(W.effDate(t, pl)) + (W.daysBetween(t0, W.effDate(t, pl)) > 1 ? ' ' + W.shortDate(W.effDate(t, pl)) : '')])
+        : ['warn', 'Not planned ' + nxt + per + ' yet'];
     } else {
       const missed = occs.filter(d => W.effDate(t, d) < t0 && !W.isDone(t, d)), next = occs.filter(d => W.effDate(t, d) >= t0 && !W.isDone(t, d));
       status = missed.length ? ['red', '⚠ Not done yet (' + missed.map(d => W.dayName(W.effDate(t, d))).join(', ') + ')'] : next.length ? ['warn', '⏳ Due ' + W.relDay(W.effDate(t, next[0])).toLowerCase()] : occs.some(d => W.isDone(t, d)) ? ['ok', '✓ Done ' + doneOn()] : ['', 'Next: ' + nextOcc(t)];
