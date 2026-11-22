@@ -10,7 +10,7 @@ Separate from the PT app — do not link or merge them.
 - Publishing = commit and push to `main`. Claude does this from chat; explain things in plain language.
 
 ## Files
-- `js/stocklist.js` starting drinks list + optional cleaning template (must load before core.js)
+- `js/stocklist.js` starting drinks list (must load before core.js)
 - `js/core.js` state, dates, DOM helper `W.h` / `W.fill`, sheets, toasts, share
 - `js/views.js` event editor (with function details `fd`), shift editor, ideas editor, quick-add menu, Rota, Ideas, Settings
 - `js/tasks.js` THE TASK ENGINE (main part of the app). Task: `{repeat: none|daily|weekly|biweekly|monthly, date, days[], mday, time, flag, clean, done/doneAt (one-off), doneDates{occ: doneOn} (repeating), start}`.
@@ -32,4 +32,5 @@ Separate from the PT app — do not link or merge them.
 - Shift time pickers start at 00:00. No stock-order banner on Today (stock badge on the tab is enough).
 - Tasks are the heart of the app: one list, chronological, timed tasks above untimed. No "asked of me"; notes cover who asked.
 - Plan first, then Overdue. Flag = one level (🚩). Done tasks stay until deleted. Functions stay separate ("In the hotel") with full details.
+- No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.

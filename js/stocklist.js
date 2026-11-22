@@ -18,12 +18,3 @@ window.W_STOCK_DEFAULT = [
   ['Liqueurs & Aperitifs', ['Baileys', 'Campari', 'Chambord', 'Disaronno', 'Giffard Triple Sec', 'Kahlúa', 'Martini Bianco', 'Passoã', 'Tequila Rose']],
   ['Syrups & Cordials', ['Blackcurrant Cordial', 'Britvic Lime Cordial', 'Finest Call Lemon Juice', 'Giffard Lychee', 'Giffard Orgeat', 'Monin Cane Sugar', 'Monin Grenadine', 'Monin Passion Fruit', 'Monin Strawberry', 'Orange Cordial']]
 ];
-
-// Optional starter cleaning jobs (only added if you tap the button). Every = days between cleans.
-window.W_CLEAN_TEMPLATE = [
-  ['Wipe down bar top & taps', 'Bar', 1], ['Clean glass washer', 'Bar', 1], ['Empty & clean drip trays', 'Bar', 1],
-  ['Restock & wipe fridges (front)', 'Bar', 1], ['Mop bar floor', 'Bar', 1], ['Empty bins & recycling', 'Bar', 1],
-  ['Clean toilets', 'Toilets', 1], ['Polish glassware', 'Bar', 2], ['Clean back-bar shelves & bottles', 'Bar', 7],
-  ['Deep clean fridges', 'Bar', 7], ['Clean ice machine', 'Bar', 7], ['Tidy & sweep cellar', 'Cellar', 7],
-  ['Clean beer lines', 'Cellar', 7], ['Wipe tables, chairs & menus', 'Floor', 1], ['Clean windows & doors', 'Floor', 7]
-];

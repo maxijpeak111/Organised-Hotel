@@ -16,8 +16,8 @@ W.card = card; W.head = head;
 W.REPEATS = [['none', 'One-off'], ['daily', 'Every shift'], ['weekly', 'Weekly'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Monthly']];
 const daysLabel = ds => WEEK_ORDER.filter(d => (ds || []).includes(d)).map(d => DAY_SHORT[d]).join(', ');
 const ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
-W.repeatLabel = t => t.repeat === 'daily' ? 'Every shift' : t.repeat === 'weekly' ? 'Weekly · ' + (daysLabel(t.days) || '?') :
-  t.repeat === 'biweekly' ? 'Every 2 weeks · ' + (daysLabel(t.days) || '?') : t.repeat === 'monthly' ? 'Monthly · ' + ord(t.mday || 1) : 'One-off';
+W.repeatLabel = t => t.repeat === 'daily' ? 'Every shift' : t.repeat === 'weekly' ? 'Weekly · ' + (daysLabel(t.days) || 'pick a day') :
+  t.repeat === 'biweekly' ? 'Every 2 weeks · ' + (daysLabel(t.days) || 'pick a day') : t.repeat === 'monthly' ? 'Monthly · ' + ord(t.mday || 1) : 'One-off';
 
 W.isShift = D => { const sh = S().shifts[D]; return !!(sh && !sh.off); };
 const lastDayOfMonth = D => { const d = W.parse(D); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
@@ -114,7 +114,6 @@ W.parseQuick = function (text) {
   else if (take(/\s(monthly|every\s+month)(?=\s)/i)) { r.repeat = 'monthly'; const d = take(/\s(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?=\s)/i); r.mday = d ? Math.min(31, +d[1]) : W.parse(t0).getDate(); }
   else if (take(/\s(weekly|every\s+week|each\s+week)(?=\s)/i)) { r.repeat = 'weekly'; r.days = grabDays(); }
   else if ((m = s.match(new RegExp('\\s(?:every|each)\\s+' + DAYRE, 'i')))) { s = s.replace(/\s(every|each)\s+/i, ' '); r.repeat = 'weekly'; r.days = grabDays(); }
-  if ((r.repeat === 'weekly' || r.repeat === 'biweekly') && !r.days.length) r.days = [dow(t0)];
 
   if (r.repeat === 'none') {
     if (take(/\s(today|tonight)(?=\s)/i)) r.date = t0;
@@ -140,6 +139,7 @@ W.parseQuick = function (text) {
   function ymd(d, mo) { const now = W.parse(t0); let x = new Date(now.getFullYear(), mo, d); if (W.dstr(x) < t0) x = new Date(now.getFullYear() + 1, mo, d); return W.dstr(x); }
 };
 const newTask = p => Object.assign({ id: W.uid(), title: '', notes: '', repeat: 'none', date: '', days: [], mday: 1, time: '', flag: false, clean: false, done: false, doneAt: '', doneDates: {}, start: W.today() }, p || {});
+W.usePreset = p => W.editTask(null, { title: p.title, notes: p.notes, repeat: p.repeat, days: (p.days || []).slice(), mday: p.mday, time: p.time, flag: p.flag, clean: p.clean });
 const describe = p => [
   p.repeat === 'none' ? '📅 ' + (p.date ? W.relDay(p.date) + (W.daysBetween(W.today(), p.date) > 6 ? '' : ' · ' + W.shortDate(p.date)) : 'No date') : '🔁 ' + W.repeatLabel(p),
   p.time ? '⏰ ' + p.time : null, p.flag ? '🚩 Important' : null, p.clean ? '🧽 Cleaning' : null
@@ -159,20 +159,23 @@ W.quickBox = function (defaultDate) {
   };
   const add = () => {
     if (!parsed || !parsed.title) return W.toast(parsed ? 'Add what the task is' : 'Type a task first');
+    if ((parsed.repeat === 'weekly' || parsed.repeat === 'biweekly') && !parsed.days.length) { W.toast('Pick which day'); return more(); }
     S().tasks.push(newTask(parsed)); W.save(); input.value = ''; W.toast('Added'); W.render();
   };
   function more() { const p = parsed || { title: input.value.trim(), date: defaultDate || '' }; W.editTask(null, p); input.value = ''; }
   input.addEventListener('input', update);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
   tags.style.display = 'none';
-  return h('div', { class: 'qa' }, h('div', { class: 'row' }, input, h('button', { class: 'btn qa-btn', onclick: add, 'aria-label': 'Add task' }, '+')), tags);
+  const pres = S().presets;
+  return h('div', { class: 'qa' }, h('div', { class: 'row' }, input, h('button', { class: 'btn qa-btn', onclick: add, 'aria-label': 'Add task' }, '+')), tags,
+    pres.length ? h('div', { class: 'qa-presets' }, h('span', { class: 'muted small' }, '⭐'), pres.map(p => h('span', { class: 'qa-tag', onclick: () => W.usePreset(p) }, p.title))) : null);
 };
 
 /* ============ FULL TASK EDITOR ============ */
 W.editTask = function (t, preset, onSave) {
   const isNew = !t;
   const d = isNew ? newTask(preset) : JSON.parse(JSON.stringify(t));
-  if (!d.days || !d.days.length) d.days = [dow(W.today())];
+  d.days = d.days || [];
   const title = h('input', { value: d.title, placeholder: 'What needs doing?' });
   const date = h('input', { type: 'date', value: d.date });
   const time = h('input', { type: 'time', value: d.time });
@@ -188,19 +191,22 @@ W.editTask = function (t, preset, onSave) {
     d.repeat === 'monthly' ? W.field('Day of the month', mday) : null);
   const flagBtn = h('span', { class: 'chip' + (d.flag ? ' on' : ''), onclick: e => { d.flag = !d.flag; e.target.classList.toggle('on'); } }, '🚩 Important');
   const cleanBtn = h('span', { class: 'chip' + (d.clean ? ' on' : ''), onclick: e => { d.clean = !d.clean; e.target.classList.toggle('on'); } }, '🧽 Cleaning');
+  let asPreset = false;
+  const presetBtn = h('span', { class: 'chip', onclick: e => { asPreset = !asPreset; e.target.classList.toggle('on'); } }, '⭐ Save as preset');
   drawWhen();
   W.sheet(isNew ? 'New task' : 'Edit task', [
     W.field('Task', title),
     W.field('How often', W.chips(W.REPEATS, d.repeat, v => { d.repeat = v; drawWhen(); })),
     when,
     W.field('Time (optional)', h('div', { class: 'row' }, time, h('button', { class: 'btn ghost small', onclick: () => { time.value = ''; } }, 'No time'))),
-    W.field('Extras', h('div', {}, flagBtn, cleanBtn)),
+    W.field('Extras', h('div', {}, flagBtn, cleanBtn, presetBtn)),
     W.field('Notes', notes),
     h('button', { class: 'btn block', onclick: () => {
       if (!title.value.trim()) return W.toast('Add a task name');
       if ((d.repeat === 'weekly' || d.repeat === 'biweekly') && !d.days.length) return W.toast('Pick at least one day');
       Object.assign(d, { title: title.value.trim(), date: d.repeat === 'none' ? date.value : '', time: time.value, notes: notes.value.trim(), mday: Math.min(31, Math.max(1, Number(mday.value) || 1)) });
       if (isNew) S().tasks.push(d); else Object.assign(t, d);
+      if (asPreset) { S().presets.push({ id: W.uid(), title: d.title, notes: d.notes, repeat: d.repeat, days: d.days.slice(), mday: d.mday, time: d.time, flag: d.flag, clean: d.clean }); W.toast('Saved as a preset'); }
       if (onSave) onSave(d);
       W.save(); W.close(); W.render();
     } }, 'Save'),
@@ -323,8 +329,8 @@ W.views.tasks = function (app) {
         if (!list.length) return null;
         return [head(label, list.length), card(list.map(x => repeatRow(x)))];
       }),
-      !s.tasks.some(x => x.repeat !== 'none') ? h('div', { class: 'empty' }, 'No repeating tasks yet. Try typing "Check wine delivery every Tuesday" or "Count tills every shift".') : null,
-      !s.tasks.some(x => x.clean) ? h('button', { class: 'btn ghost block', onclick: addCleanTemplate }, '🧽 Add common bar cleaning jobs') : null
+      !s.tasks.some(x => x.repeat !== 'none') ? h('div', { class: 'empty' }, 'No repeating tasks yet. Type one in the box above the way you\'d say it, with how often and which day.') : null,
+      presetSection()
     ];
   } else if (tab === 'team') {
     const open = sortTeam(W.openTeam());
@@ -355,12 +361,16 @@ W.views.tasks = function (app) {
 };
 W.tasksTab = v => { tab = v; };
 
-function addCleanTemplate() {
-  (window.W_CLEAN_TEMPLATE || []).forEach(([title, area, every], i) => S().tasks.push(newTask({ title, notes: 'Area: ' + area, clean: true, repeat: every === 1 ? 'daily' : 'weekly', days: [WEEK_ORDER[i % 7]] })));
-  W.save(); W.render(); W.toast('Added. Edit or delete any that don\'t fit');
-}
 
 function nextOcc(t) { for (let i = 0; i < 70; i++) { const d = W.addDays(W.today(), i); if (W.occursOn(t, d)) return W.relDay(d) + (i > 1 && i < 7 ? ' ' + W.shortDate(d) : ''); } return '—'; }
+function presetSection() {
+  const pres = S().presets;
+  return [h('h2', {}, h('span', {}, '⭐ Presets'), pres.length ? h('span', { class: 'count' }, pres.length) : null),
+    pres.length ? W.card(pres.map(p => h('div', { class: 'item' },
+      h('div', { class: 'grow', style: 'cursor:pointer', onclick: () => W.usePreset(p) }, h('div', { class: 't' }, p.title), h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(p)), p.time ? h('span', { class: 'pill time' }, p.time) : null, 'Tap to add')),
+      h('button', { class: 'del', 'aria-label': 'Delete preset', onclick: () => W.confirm('Delete the preset "' + p.title + '"? Tasks already made from it stay.', () => { S().presets = S().presets.filter(x => x.id !== p.id); W.save(); W.render(); }) }, '✕'))))
+      : h('p', { class: 'muted small' }, 'None yet. When adding or editing a task, tap ⭐ Save as preset to reuse it later. Presets show as quick buttons under the task box.')];
+}
 // A repeating task with this period's status and the last 4 periods as dots
 function repeatRow(t) {
   const t0 = W.today();

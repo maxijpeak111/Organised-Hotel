@@ -39,7 +39,8 @@ function defaults() {
     orders: [],     // {id, date, items:[name]}
     ideas: [],      // {id, title, notes, cat, status, created}
     journal: {},    // date -> [{id, time, text, sorted}]
-    team: []        // tasks handed out to staff (see tasks.js)
+    team: [],       // tasks handed out to staff (see tasks.js)
+    presets: []     // tasks the owner saved to reuse
   };
 }
 function load() {
