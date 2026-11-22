@@ -164,8 +164,11 @@ W.views.today = function (app) {
   const events = s.events.filter(e => e.date >= t && e.date <= W.addDays(t, 7)).sort((a, b) => (a.date + a.time) < (b.date + b.time) ? -1 : 1);
   const low = W.lowItems(), od = W.nextOrderDate(), odIn = W.daysBetween(t, od);
 
+  const hr = new Date().getHours();
+  const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   W.fill(app,
-    h('div', { class: 'top' }, h('h1', {}, W.DAYS_LONG[W.parse(t).getDay()], h('div', { class: 'muted', style: 'font-size:15px;font-weight:600;text-transform:none;margin-top:4px' }, W.niceDate(t))),
+    h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
+    h('div', { class: 'top' }, h('h1', {}, hello + ' 👋', h('div', { class: 'muted', style: 'font-size:15px;font-weight:600;margin-top:4px' }, W.DAYS_LONG[W.parse(t).getDay()] + ' ' + W.niceDate(t).slice(4))),
       h('button', { class: 'icon-btn', onclick: W.settings, 'aria-label': 'Settings' }, '⚙')),
     h('div', { class: 'card tap', onclick: () => W.editShift(t) },
       h('div', { class: 'row between' }, h('div', {}, h('div', { class: 'muted small' }, 'Shift today'), h('div', { class: 'big-num', style: 'font-size:26px;margin-top:2px' }, shift ? W.fmtShift(shift) : 'Not set')),
@@ -174,7 +177,7 @@ W.views.today = function (app) {
     (low.length || odIn <= 1) && h('div', { class: 'card tap' + (odIn === 0 ? ' alert' : ''), onclick: () => W.go('stock') },
       h('div', { class: 'row between' }, h('div', {}, h('div', { style: 'font-weight:800' }, odIn === 0 ? 'Stock order day' : odIn === 1 ? 'Stock order tomorrow' : 'Stock to order'),
         h('div', { class: 'muted small' }, low.length ? low.length + ' item' + (low.length > 1 ? 's' : '') + ' on the order list' : 'Nothing flagged yet. Do a stock check')),
-        h('span', { class: 'pill red' }, 'Stock ›'))),
+        h('span', { class: 'pill blue' }, 'Stock ›'))),
     head('Asked of me', asked.length || null),
     asked.length ? card(asked.map(W.taskRow)) : h('div', { class: 'empty' }, 'Nobody\'s waiting on you. Tap + when someone asks you to do something.'),
     head('To do today', mine.length || null),

@@ -85,7 +85,7 @@ W.views.stock = function (app) {
     !editing && h('div', { class: 'card' + (odIn === 0 ? ' alert' : '') },
       h('div', { class: 'row between' },
         h('div', {}, h('div', { class: 'muted small' }, 'Next order'), h('div', { style: 'font-weight:900;font-size:20px' }, odIn === 0 ? 'Today' : odIn === 1 ? 'Tomorrow' : W.niceDate(od))),
-        h('div', { style: 'text-align:right' }, h('div', { class: 'big-num' + (low.length ? ' red' : '') }, low.length), h('div', { class: 'muted small' }, 'on order list'))),
+        h('div', { style: 'text-align:right' }, h('div', { class: 'big-num' + (low.length ? ' blue' : '') }, low.length), h('div', { class: 'muted small' }, 'on order list'))),
       s.orders.length ? h('p', { class: 'muted small' }, 'Last order: ' + W.relDay(s.orders[s.orders.length - 1].date).toLowerCase() + ' (' + s.orders[s.orders.length - 1].items.length + ' items)') : h('p', { class: 'muted small' }, 'Tap a drink below when it\'s running low. It goes on the order list.'),
       usualMissing.length ? h('div', { class: 'card', style: 'background:var(--panel2);margin:10px 0 0' },
         h('div', { style: 'font-weight:800' }, 'Usually ordered, not on the list yet'),
@@ -107,7 +107,7 @@ W.views.stock = function (app) {
       if (q && !items.length) return null;
       const nLow = sec.items.filter(i => i.low).length;
       const det = h('details', { class: 'stock-sec', open: !!(q || editing || openSecs.has(sec.id)), ontoggle: e => { if (e.target.open) openSecs.add(sec.id); else openSecs.delete(sec.id); } },
-        h('summary', {}, h('span', { class: 'grow' }, sec.name), nLow ? h('span', { class: 'pill red' }, nLow + ' to order') : h('span', { class: 'muted small' }, sec.items.length)),
+        h('summary', {}, h('span', { class: 'grow' }, sec.name), nLow ? h('span', { class: 'pill blue' }, nLow + ' to order') : h('span', { class: 'muted small' }, sec.items.length)),
         editing ? h('div', { class: 'sitem', onclick: () => editSection(sec) }, h('span', { class: 'muted' }, '✎ Rename / delete section')) : null,
         items.map(it => {
           const lastO = hist.last[it.name];
@@ -119,7 +119,7 @@ W.views.stock = function (app) {
             h('div', { class: 'grow' }, h('div', {}, it.name),
               !editing && (lastO || usual(it.name)) ? h('div', { class: 'sub' }, [usual(it.name) ? 'Usually ordered' : null, lastO ? 'last ordered ' + W.relDay(lastO).toLowerCase() : null].filter(Boolean).join(' · ')) : null));
         }),
-        editing ? h('div', { class: 'sitem', onclick: () => editItem(sec) }, h('span', { class: 'red', style: 'font-weight:800' }, '+ Add item')) : null);
+        editing ? h('div', { class: 'sitem', onclick: () => editItem(sec) }, h('span', { class: 'blue', style: 'font-weight:800' }, '+ Add item')) : null);
       return det;
     }),
     editing ? h('button', { class: 'btn ghost block', onclick: () => editSection() }, '+ Add section') : null,

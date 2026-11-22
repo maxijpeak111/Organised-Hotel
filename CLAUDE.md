@@ -17,5 +17,5 @@ Separate from the PT app — do not link or merge them.
 - `js/app.js` router + nav. Adding a JS file: add to `index.html` and `SHELL` in `sw.js`, bump `V`.
 
 ## Rules
-- Dark, sleek, serious; red, black, white. Big tap targets, few taps. Relative paths only.
+- Friendly, light look in the hotel colours: blue (menus/uniform) as main colour, yellow (logo) for highlights, warm brown (building) for text/headings, cream + white backgrounds. Big tap targets, few taps. Relative paths only.
 - Build DOM with `W.h` (text is always text, never HTML).
