@@ -1,6 +1,6 @@
 // Network first, so updates show up as soon as you're online; cached copy is the offline fallback.
-const V = 'work-v3';
-const SHELL = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'js/stocklist.js', 'js/core.js', 'js/views.js', 'js/today.js', 'js/stock.js', 'js/app.js'];
+const V = 'work-v4';
+const SHELL = ['./', 'index.html', 'style.css?v=4', 'manifest.webmanifest', 'js/stocklist.js?v=4', 'js/core.js?v=4', 'js/views.js?v=4', 'js/today.js?v=4', 'js/stock.js?v=4', 'js/app.js?v=4'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
@@ -12,7 +12,7 @@ self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (u.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-cache' }).then(r => {
       const copy = r.clone();
       caches.open(V).then(c => c.put(e.request, copy));
       return r;
