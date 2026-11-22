@@ -43,6 +43,7 @@ W.periodEnd = function (t, D) {
 W.occursOn = function (t, D) {
   if (t.repeat === 'none' || !t.repeat) return t.date === D;
   if (D < (t.start || '0') && !(W.isFlex(t) && W.periodEnd(t, D) >= (t.start || '0'))) return false;
+  if ((t.skip || {})[D]) return false;
   if (t.repeat === 'daily') return W.isShift(D);
   if (W.isFlex(t)) return (t.placed || {})[W.periodStart(t, D)] === D;
   if (t.repeat === 'weekly') return (t.days || []).includes(dow(D));
@@ -254,7 +255,8 @@ W.quickBox = function (defaultDate, mode) {
 
 /* ============ FULL TASK EDITOR ============ */
 // mode: 'oneoff' (To do: task + date, no repeat options), 'repeat' (Repeating: must choose how often, nothing pre-picked), or full
-W.editTask = function (t, preset, onSave, mode) {
+// occ: when opened from a day's list, the day it was for. Deleting a repeating task there only removes that one.
+W.editTask = function (t, preset, onSave, mode, occ) {
   const isNew = !t;
   const d = isNew ? newTask(preset) : JSON.parse(JSON.stringify(t));
   if (mode === 'repeat' && d.repeat === 'none') d.repeat = '';
@@ -293,7 +295,10 @@ W.editTask = function (t, preset, onSave, mode) {
       if (onSave) onSave(d);
       W.save(); W.close(); W.render();
     } }, 'Save'),
-    !isNew && h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this task' + (t.repeat !== 'none' ? ' and all its repeats' : '') + '?', () => { S().tasks = S().tasks.filter(x => x.id !== t.id); W.save(); W.render(); }) }, 'Delete')
+    !isNew && t.repeat !== 'none' && occ ? [
+      h('button', { class: 'btn danger block', onclick: () => { t.skip = t.skip || {}; t.skip[occ] = true; W.save(); W.close(); W.render(); W.toast('Removed. It still repeats'); } }, 'Remove just this one (' + W.relDay(W.effDate(t, occ)) + ')'),
+      h('p', { class: 'muted small', style: 'text-align:center' }, 'It keeps repeating. To delete it for good, go to Tasks → Repeating.')]
+    : !isNew && h('button', { class: 'btn danger block', onclick: () => W.confirm(t.repeat !== 'none' ? 'Delete this repeating task for good? It won\'t come back on future days.' : 'Delete this task?', () => { S().tasks = S().tasks.filter(x => x.id !== t.id); W.save(); W.render(); }) }, t.repeat !== 'none' ? 'Delete repeating task' : 'Delete')
   ]);
   if (isNew && !d.title) setTimeout(() => title.focus(), 50);
 };
@@ -305,7 +310,7 @@ W.taskRow = function (it, opts) {
   const t = it.task, done = W.isDone(t, it.occ);
   return h('div', { class: 'item' + (done ? ' done' : '') + (t.flag && !done ? ' flagged' : '') },
     h('input', { type: 'checkbox', checked: done, onchange: e => { W.setDone(t, it.occ, e.target.checked); W.toast(e.target.checked ? 'Done ✓' : 'Re-opened'); setTimeout(W.render, 250); } }),
-    h('div', { class: 'grow', onclick: () => W.editTask(t) },
+    h('div', { class: 'grow', onclick: () => W.editTask(t, null, null, undefined, it.occ) },
       h('div', { class: 't' }, t.flag ? h('span', { class: 'flag' }, '🚩 ') : null, t.title),
       h('div', { class: 'sub' },
         t.time ? h('span', { class: 'pill time' }, t.time) : null,

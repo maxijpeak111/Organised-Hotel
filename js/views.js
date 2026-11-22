@@ -126,7 +126,7 @@ W.views.rota = function (app) {
           h('span', { class: 'pill' + (sh && !sh.off ? ' shift' : ''), style: 'cursor:pointer;padding:6px 12px;font-size:13px', onclick: () => W.editShift(d) }, sh ? W.fmtShift(sh) : '+ Shift')),
         sh && sh.note ? h('div', { class: 'muted small', style: 'margin-top:4px' }, sh.note) : null,
         evs.map(e => h('div', { class: 'ev', onclick: () => W.editEvent(e) }, h('b', {}, e.time || '•'), h('div', {}, e.title))),
-        due.map(i => h('div', { class: 'ev', onclick: () => W.editTask(i.task) }, h('b', {}, i.task.time || '☐'), h('div', { class: 'muted' }, (i.task.flag ? '🚩 ' : '') + i.task.title))),
+        due.map(i => h('div', { class: 'ev', onclick: () => W.editTask(i.task, null, null, undefined, i.occ) }, h('b', {}, i.task.time || '☐'), h('div', { class: 'muted' }, (i.task.flag ? '🚩 ' : '') + i.task.title))),
         nDaily ? h('div', { class: 'muted small', style: 'margin-top:6px' }, '+ ' + nDaily + ' daily task' + (nDaily > 1 ? 's' : '')) : null,
         h('div', { style: 'margin-top:8px' }, h('span', { class: 'chip', style: 'margin:0', onclick: () => W.editEvent(null, d) }, '+ Event')));
     }),

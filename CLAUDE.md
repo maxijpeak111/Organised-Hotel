@@ -37,4 +37,5 @@ Separate from the PT app — do not link or merge them.
 - No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
 - Each Tasks section's + (round button and the + by the typing box) opens that section's own form: To do → one-off task + date (no repeat options); Repeating → must choose how often (nothing pre-picked); Team → hand out task. No + on Done. Date chips start unselected on new tasks.
 - Weekly jobs don't need a set day (owner decides as the week begins; app reminds him to place them). No tasks on days off.
+- Deleting a repeating task from a day (To do / Today / Rota) removes only that occurrence (`t.skip[occ]`); deleting it for good is only in Tasks → Repeating.
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.
