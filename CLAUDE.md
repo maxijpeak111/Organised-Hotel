@@ -22,7 +22,7 @@ Separate from the PT app — do not link or merge them.
   Days off: repeating tasks never land on a non-shift day — `W.effDate` moves them to the next shift (never past the task's next repeat). `W.dayItems(D)` uses effDate.
   `W.planList` folds 2+ cleaning tasks on a day into a "Cleaning ▸" dropdown. `W.migrate` converted v1 tasks + cleaning (tv: 2).
 - `js/today.js` Today (day-by-day, ‹ › and swipe): info line, quick-add, Today's plan (timed first, flagged next) → Overdue → Team → In the hotel (+ Get ready for) → Coming up → Journal link; and the Journal tab
-- `js/stock.js` stock list: tap to flag low → order list; "Order placed" saves to `orders` history
+- `js/stock.js` stock list: tap to tick → order list, optional qty box on ticked items; "Order placed" saves `orders` as `{name, qty}` (old orders were plain names — use `nm()/qy()`), clears ticks. "avg N" = average qty of last 6 orders with a qty. Sections: Draught Beer (Camden Hells, Camden Pale Ale, Seven Brothers IPA, Stella), Bottled Beers & Ciders, Wines (all wines incl. rosé/prosecco), Aperol Spritz in Liqueurs (`W.migrateStock`, stockV 2)
 - `js/app.js` router + nav (Today, Tasks, Stock, Journal, Rota, Ideas). Adding a JS file: add to `index.html` and `SHELL` in `sw.js`.
 - Every release: bump `?v=N` on all script/css links in `index.html` and in `SHELL` in `sw.js`, and bump `V` in `sw.js`. Stops phones mixing old and new files (that caused a blank page once).
 

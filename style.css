@@ -156,3 +156,5 @@ input[type=checkbox]:checked{background:var(--ok) url("data:image/svg+xml,%3Csvg
 .day-chip{display:inline-flex;flex-direction:column;align-items:center;gap:1px;padding:8px 12px;border-radius:14px;min-width:76px}
 .day-chip small{font-size:11px;font-weight:600;opacity:.8}
 .day-chip.dim{opacity:.6}
+.sitem .avg{font-size:12px;font-weight:800;color:var(--brown);background:var(--yellow-soft);border-radius:999px;padding:3px 8px;flex:none}
+.sitem .qty{width:68px;min-height:38px;padding:6px 8px;text-align:center;font-weight:800;flex:none;border-color:var(--blue)}

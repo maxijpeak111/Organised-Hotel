@@ -53,6 +53,7 @@ function load() {
 }
 W.state = load();
 W.seedStock = () => {
+  W.state.stockV = 2;
   W.state.stock = (window.W_STOCK_DEFAULT || []).map(([name, items]) => ({ id: W.uid(), name, items: items.map(n => ({ id: W.uid(), name: n, low: false })) }));
 };
 if (!W.state.stock) W.seedStock();
@@ -60,7 +61,7 @@ W.save = () => {
   try { localStorage.setItem(KEY, JSON.stringify(W.state)); return true; }
   catch (e) { alert('Could not save. Storage may be full or blocked in this browser.'); return false; }
 };
-W.replaceState = obj => { const d = defaults(); W.state = Object.assign(d, obj, { settings: Object.assign(d.settings, obj.settings || {}) }); if (!W.state.stock) W.seedStock(); if (W.migrate) W.migrate(); W.save(); };
+W.replaceState = obj => { const d = defaults(); W.state = Object.assign(d, obj, { settings: Object.assign(d.settings, obj.settings || {}) }); if (!W.state.stock) W.seedStock(); if (W.migrate) W.migrate(); if (W.migrateStock) W.migrateStock(); W.save(); };
 W.save();
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
 

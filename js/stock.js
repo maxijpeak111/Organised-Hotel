@@ -6,17 +6,47 @@ let editing = false, search = '';
 const openSecs = new Set();
 
 // How often each item has been on recent orders (last 6).
+// Order items are {name, qty} (older orders were just names)
+const nm = x => typeof x === 'string' ? x : x.name;
+const qy = x => typeof x === 'string' ? '' : x.qty;
 function history() {
   const recent = S().orders.slice(-6), map = {};
-  recent.forEach(o => o.items.forEach(n => { map[n] = (map[n] || 0) + 1; }));
-  const last = {};
-  S().orders.forEach(o => o.items.forEach(n => { last[n] = o.date; }));
-  return { n: recent.length, map, last };
+  recent.forEach(o => o.items.forEach(x => { map[nm(x)] = (map[nm(x)] || 0) + 1; }));
+  const last = {}, qtys = {};
+  S().orders.forEach(o => o.items.forEach(x => { last[nm(x)] = o.date; const q = Number(qy(x)); if (q > 0) (qtys[nm(x)] = qtys[nm(x)] || []).push(q); }));
+  const avg = {};
+  Object.keys(qtys).forEach(k => { const a = qtys[k].slice(-6); avg[k] = Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10; });
+  return { n: recent.length, map, last, avg };
 }
+
+/* One-off tidy of the list: wines together, bottled beers & ciders together, draught beer, Aperol Spritz */
+W.migrateStock = function () {
+  const s = S();
+  if ((s.stockV || 1) >= 2 || !s.stock) return;
+  const take = names => { const secs = s.stock.filter(x => names.includes(x.name)); s.stock = s.stock.filter(x => !names.includes(x.name)); return secs; };
+  const merge = (names, newName) => {
+    const first = s.stock.findIndex(x => names.includes(x.name));
+    if (first < 0) return -1;
+    const secs = take(names);
+    const items = secs.flatMap(x => x.items).sort((a, b) => a.name.localeCompare(b.name));
+    s.stock.splice(first, 0, { id: secs[0].id, name: newName, items });
+    return first;
+  };
+  merge(['Red Wine', 'White Wine', 'Rosé Wine', 'Sparkling'], 'Wines');
+  const bi = merge(['Beers', 'Ciders'], 'Bottled Beers & Ciders');
+  if (!s.stock.some(x => x.name === 'Draught Beer')) {
+    const dr = { id: W.uid(), name: 'Draught Beer', items: ['Camden Hells Lager', 'Camden Pale Ale', 'Seven Brothers IPA', 'Stella Artois'].map(n => ({ id: W.uid(), name: n, low: false })) };
+    s.stock.splice(bi >= 0 ? bi : 0, 0, dr);
+  }
+  const liq = s.stock.find(x => /liqueur/i.test(x.name));
+  if (liq && !liq.items.some(i => /aperol/i.test(i.name))) { liq.items.push({ id: W.uid(), name: 'Aperol Spritz', low: false }); liq.items.sort((a, b) => a.name.localeCompare(b.name)); }
+  s.stockV = 2; W.save();
+};
+W.migrateStock();
 
 function orderText() {
   const lines = ['Drinks order – ' + W.niceDate(W.today()), ''];
-  S().stock.forEach(sec => { const low = sec.items.filter(i => i.low); if (low.length) { lines.push(sec.name.toUpperCase()); low.forEach(i => lines.push('☐ ' + i.name)); lines.push(''); } });
+  S().stock.forEach(sec => { const low = sec.items.filter(i => i.low); if (low.length) { lines.push(sec.name.toUpperCase()); low.forEach(i => lines.push('☐ ' + i.name + (Number(i.qty) > 0 ? ' × ' + i.qty : ''))); lines.push(''); } });
   return lines.join('\n').trim();
 }
 
@@ -56,9 +86,9 @@ function editSection(sec) {
 function showOrder(o) {
   W.sheet('Order · ' + W.niceDate(o.date), [
     h('p', { class: 'muted' }, o.items.length + ' items'),
-    h('div', { class: 'card' }, o.items.map(n => h('div', { class: 'item' }, h('div', { class: 'grow' }, n)))),
+    h('div', { class: 'card' }, o.items.map(x => h('div', { class: 'item' }, h('div', { class: 'grow' }, nm(x)), qy(x) ? h('b', {}, '× ' + qy(x)) : null))),
     h('button', { class: 'btn block', onclick: () => {
-      let n = 0; S().stock.forEach(s => s.items.forEach(i => { if (o.items.includes(i.name) && !i.low) { i.low = true; n++; } }));
+      let n = 0; S().stock.forEach(s => s.items.forEach(i => { const m = o.items.find(x => nm(x) === i.name); if (m && !i.low) { i.low = true; i.qty = qy(m) || ''; n++; } }));
       W.save(); W.close(); W.render(); W.toast(n + ' added to order list');
     } }, 'Add these to this week\'s order'),
     h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this order from history?', () => { S().orders = S().orders.filter(x => x.id !== o.id); W.save(); W.render(); }) }, 'Delete from history')
@@ -71,7 +101,8 @@ W.views.stock = function (app) {
   const od = W.nextOrderDate(), odIn = W.daysBetween(t, od);
   const q = search.toLowerCase();
   const usual = name => hist.n >= 2 && (hist.map[name] || 0) / hist.n >= 0.5;
-  const usualMissing = s.stock.flatMap(sec => sec.items.filter(i => !i.low && usual(i.name)));
+  const lastOrd = s.orders.length ? s.orders[s.orders.length - 1].date : '';
+  const usualMissing = lastOrd && W.daysBetween(lastOrd, t) < 3 ? [] : s.stock.flatMap(sec => sec.items.filter(i => !i.low && usual(i.name)));
 
   const searchBox = h('input', { type: 'search', placeholder: 'Search drinks…', value: search, oninput: e => {
     search = e.target.value; const pos = e.target.selectionStart; W.render();
@@ -93,8 +124,8 @@ W.views.stock = function (app) {
       low.length ? h('div', { class: 'grid2', style: 'margin-top:10px' },
         h('button', { class: 'btn ghost', onclick: () => W.share('Drinks order', orderText()) }, 'Share list'),
         h('button', { class: 'btn', onclick: () => W.confirm('Mark this order as placed? The ' + low.length + ' items are saved to order history and the list is cleared.', () => {
-          s.orders.push({ id: W.uid(), date: t, items: low.map(i => i.name) });
-          s.stock.forEach(sec => sec.items.forEach(i => { i.low = false; }));
+          s.orders.push({ id: W.uid(), date: t, items: W.lowItems().map(i => ({ name: i.name, qty: Number(i.qty) > 0 ? Number(i.qty) : '' })) });
+          s.stock.forEach(sec => sec.items.forEach(i => { i.low = false; i.qty = ''; }));
           W.save(); W.render(); W.toast('Order saved');
         }) }, 'Order placed')) : null),
 
@@ -113,11 +144,14 @@ W.views.stock = function (app) {
           const lastO = hist.last[it.name];
           return h('div', { class: 'sitem' + (it.low && !editing ? ' low' : ''), onclick: () => {
             if (editing) return editItem(sec, it);
-            it.low = !it.low; W.save(); W.render();
+            it.low = !it.low; if (!it.low) it.qty = ''; W.save(); W.render();
           } },
             editing ? h('span', { class: 'muted' }, '✎') : h('span', { class: 'box' }, it.low ? '✓' : ''),
             h('div', { class: 'grow' }, h('div', {}, it.name),
-              !editing && (lastO || usual(it.name)) ? h('div', { class: 'sub' }, [usual(it.name) ? 'Usually ordered' : null, lastO ? 'last ordered ' + W.relDay(lastO).toLowerCase() : null].filter(Boolean).join(' · ')) : null));
+              !editing && (lastO || usual(it.name)) ? h('div', { class: 'sub' }, [usual(it.name) ? 'Usually ordered' : null, lastO ? 'last ordered ' + W.relDay(lastO).toLowerCase() : null].filter(Boolean).join(' · ')) : null),
+            !editing && hist.avg[it.name] ? h('span', { class: 'avg' }, 'avg ' + hist.avg[it.name]) : null,
+            !editing && it.low ? h('input', { class: 'qty', type: 'number', inputmode: 'numeric', min: 0, placeholder: 'Qty', value: it.qty || '',
+              onclick: e => e.stopPropagation(), oninput: e => { it.qty = e.target.value; W.save(); } }) : null);
         }),
         editing ? h('div', { class: 'sitem', onclick: () => editItem(sec) }, h('span', { class: 'blue', style: 'font-weight:800' }, '+ Add item')) : null);
       return det;
@@ -128,7 +162,7 @@ W.views.stock = function (app) {
 
     !editing && s.orders.length ? [h('h2', {}, h('span', {}, 'Order history'), h('span', { class: 'count' }, s.orders.length)),
       h('div', { class: 'card' }, s.orders.slice(-10).reverse().map(o => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => showOrder(o) },
-        h('div', { class: 'grow' }, h('div', { class: 't' }, W.niceDate(o.date)), h('div', { class: 'sub' }, o.items.length + ' items: ' + o.items.slice(0, 4).join(', ') + (o.items.length > 4 ? '…' : ''))),
+        h('div', { class: 'grow' }, h('div', { class: 't' }, W.niceDate(o.date)), h('div', { class: 'sub' }, o.items.length + ' items: ' + o.items.map(nm).slice(0, 4).join(', ') + (o.items.length > 4 ? '…' : ''))),
         h('span', { class: 'muted' }, '›'))))] : null
   );
 };
