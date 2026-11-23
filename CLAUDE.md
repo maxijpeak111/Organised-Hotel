@@ -6,7 +6,9 @@ Separate from the PT app — do not link or merge them.
 ## How it works
 - Plain HTML, CSS and vanilla JavaScript at the repo root. No build step, no backend.
 - Hosted by GitHub Pages from `main` / root: https://maxijpeak111.github.io/Organised-Hotel/
-- All data lives on the phone only (localStorage key `work.v1`). Backup/restore in Today → ⚙ Settings.
+- Data lives in localStorage key `work.v1`. **Cloud save** (`js/sync.js`, ⚙ Settings): every real change is pushed to the owner's
+  own PRIVATE GitHub data repo as `work.json` (fine-grained access key kept on the device only). `state._at`/`_rev` stamp real changes;
+  newer side wins; both changed → user picks. `js/sync.js` is a copy of the PT app's (adapter at the top differs). File backup still in Settings.
 - Publishing = commit and push to `main`. Claude does this from chat; explain things in plain language.
 
 ## Files

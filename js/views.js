@@ -180,8 +180,10 @@ W.settings = function () {
     W.field('Staff', h('div', {},
       (s.staff || []).length ? s.staff.map((n, i) => h('span', { class: 'chip', onclick: () => W.confirm('Remove ' + n + ' from your staff list?', () => { s.staff.splice(i, 1); W.save(); }) }, n + '  ✕')) : h('p', { class: 'muted small' }, 'Add your team once, then just tap their names.'),
       h('div', { class: 'row', style: 'margin-top:4px' }, h('input', { placeholder: 'Name', id: 'staff-add' }), h('button', { class: 'btn small', onclick: () => { const i = document.getElementById('staff-add'); W.addStaff(i.value); W.settings(); } }, 'Add')))),
-    h('h2', {}, 'Backup'),
-    h('p', { class: 'muted small' }, 'Everything is saved on this phone only. Make a backup now and then, so you can restore it if you change phone or clear Safari.'),
+    h('h2', {}, 'Cloud save'),
+    W.cloud.card(),
+    h('h2', {}, 'Backup file'),
+    h('p', { class: 'muted small' }, W.cloud.on() ? 'Cloud save is on, so this is just an extra copy if you want one.' : 'Without cloud save, everything is only on this device. Turn on cloud save above, or save a backup file now and then.'),
     h('button', { class: 'btn block', onclick: () => {
       const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
       const file = new File([blob], 'work-backup-' + W.today() + '.json', { type: 'application/json' });
