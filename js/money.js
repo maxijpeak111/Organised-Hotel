@@ -23,7 +23,7 @@ W.views.more = function (app) {
     item('#money', '💷', 'Tips & bonus', moneySub),
     item('#rota', '📅', 'Rota', 'Your shifts and what\'s on each day'),
     item('#ideas', '💡', 'Ideas', 'Ways to improve the business'),
-    item('', '🛠', 'Resolutions', 'How to fix things that keep going wrong', true)
+    item('#res', '🛠', 'Resolutions', (S().res || []).length ? (S().res || []).length + ' saved fixes · search when something breaks' : 'How to fix things that keep going wrong')
   );
 };
 

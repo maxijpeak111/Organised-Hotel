@@ -24,6 +24,7 @@ Separate from the PT app — do not link or merge them.
 - `js/today.js` Today (day-by-day, ‹ › and swipe): info line, quick-add, To do list (timed first, flagged next) → Overdue → Team → In the hotel (+ Get ready for) → Coming up → Journal link; and the Journal tab
 - `js/stock.js` stock list: tap to tick → order list, optional qty box on ticked items; "Order placed" saves `orders` as `{name, qty}` (old orders were plain names — use `nm()/qy()`), clears ticks. "avg N" = average qty of last 6 orders with a qty. Sections: Draught Beer (Camden Hells, Camden Pale Ale, Seven Brothers IPA, Stella), Bottled Beers & Ciders, Wines (all wines incl. rosé/prosecco), Aperol Spritz in Liqueurs (`W.migrateStock`, stockV 2)
 - `js/money.js` More tab (Tips & bonus, Rota, Ideas, Resolutions-soon) + Tips & bonus tracker: `state.money = {perReview (£5), goal {amount, period week|month}, days[date] = {reviews, tips}}`; goal bar, weekly averages over last 8 weeks with entries.
+- `js/resolutions.js` Resolutions (fix-it guides) under More, route `#res` (`W.resOpen` = open item): search by typing, areas Rooms / Reception / Restaurant / Other; each has fixes (numbered steps, optional photo per step shrunk to ~900px JPEG, note), optional call contact (tel: link), log of "✓ That worked" (date, fix, note) → most-successful fix shown first, monthly count + Share report. Read-only steps (no ticking). Journal note → Resolution prefills title + steps. Seeded 4 titles only (resV 1): Chromecast, key card, room sockets, blocked sink.
 - `js/app.js` router + nav (Today, Tasks, Stock, Journal, More; Rota/Ideas/Money live under More with a ‹ More link). Adding a JS file: add to `index.html` and `SHELL` in `sw.js`.
 - Every release: bump `?v=N` on all script/css links in `index.html` and in `SHELL` in `sw.js`, and bump `V` in `sw.js`. Stops phones mixing old and new files (that caused a blank page once).
 
@@ -49,5 +50,5 @@ Separate from the PT app — do not link or merge them.
 - Today's Coming up shows only the next 3 days; "Show more" expands to 2 weeks.
 - Journal is for notes through the day AND the 10:30 / 15:00 daily meetings and the fortnightly Ops meeting: meeting mode saves one point per line (`note.meet`, `note.mid`), each point sent → Task / Team / Hotel / Idea / nothing.
 - Stock also has Crisps (Tyrrells) and Chocolate (Cadbury Dairy Milk, KitKat Chunky) — `W.migrateStock3`, stockV 3.
-- Resolutions (fix-it guides, e.g. Chromecast) planned under More — waiting on owner's answers.
+- Resolutions: owner writes fixes after the fact and improves them over time (add another way rather than overwrite). Not shared with staff. No auto journal entry when a fix works.
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.

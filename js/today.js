@@ -211,6 +211,7 @@ W.views.journal = function (app) {
       h('span', { class: 'chip', onclick: () => W.editTeam(null, { title: n.text.slice(0, 160) }, x => markSorted(n, 'Team' + (x.who ? ' · ' + x.who : ''))) }, '→ Team'),
       h('span', { class: 'chip', onclick: () => W.editEvent(null, null, { title: n.text.slice(0, 120) }, () => markSorted(n, 'Hotel')) }, '→ Hotel'),
       h('span', { class: 'chip', onclick: () => W.editIdea(null, { title: n.text.slice(0, 120), notes: n.text.length > 120 ? n.text : '' }, () => markSorted(n, 'Idea')) }, '→ Idea'),
+      h('span', { class: 'chip', onclick: () => { const lines = n.text.split(/\n|\.\s+/).map(x => x.trim()).filter(Boolean); W.editRes(null, { title: lines[0].slice(0, 80), fixes: [{ id: W.uid(), steps: lines.slice(1).map(x => ({ id: W.uid(), text: x, photo: '' })), note: '', worked: 0 }] }, false, () => markSorted(n, 'Resolution')); } }, '→ Resolution'),
       h('span', { class: 'chip', onclick: () => { markSorted(n, 'Done'); W.render(); } }, '✓ Nothing to do')) : null);
 
   // group meeting points under their meeting

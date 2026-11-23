@@ -10,7 +10,7 @@ const TABS = [
   ['more', 'More', '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>']
 ];
 let cur = 'today';
-const MORE_PAGES = ['rota', 'ideas', 'money'];
+const MORE_PAGES = ['rota', 'ideas', 'money', 'res'];
 W.go = tab => { location.hash = tab; };
 function badge(tab) {
   const s = W.state, t = W.today();
@@ -27,7 +27,7 @@ W.render = function () {
   W.views[cur](app);
   const tt = cur === 'tasks' ? W.tasksTabNow() : '';
   const closedView = cur === 'today' && (W.closing || W.state.closed[W.today()]);
-  if (cur !== 'stock' && cur !== 'journal' && tt !== 'done' && !closedView && cur !== 'more' && cur !== 'money') app.append(h('button', { class: 'fab', onclick: () => {
+  if (cur !== 'stock' && cur !== 'journal' && tt !== 'done' && !closedView && cur !== 'more' && cur !== 'money' && !(cur === 'res')) app.append(h('button', { class: 'fab', onclick: () => {
     if (cur === 'tasks') W.openSectionForm(tt === 'repeat' ? 'repeat' : tt === 'team' ? 'team' : 'oneoff');
     else if (cur === 'ideas') W.editIdea(); else if (cur === 'rota') W.editEvent(); else W.quickAdd();
   }, 'aria-label': 'Add' }, '+'));
@@ -38,7 +38,7 @@ W.render = function () {
   window.scrollTo(0, y);
 };
 let lastTab = null;
-window.addEventListener('hashchange', () => { W.close(); if (location.hash !== '#today' && location.hash) W.closing = false; if (cur === 'journal' && location.hash !== '#journal') W.journalDay = null; W.render(); if (cur !== lastTab) window.scrollTo(0, 0); lastTab = cur; });
+window.addEventListener('hashchange', () => { W.close(); if (location.hash !== '#today' && location.hash) W.closing = false; if (location.hash !== '#res') W.resOpen = null; if (cur === 'journal' && location.hash !== '#journal') W.journalDay = null; W.render(); if (cur !== lastTab) window.scrollTo(0, 0); lastTab = cur; });
 // Refresh "today" if the app is left open past midnight
 let day = W.today();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && W.today() !== day) { day = W.today(); W.render(); } });
