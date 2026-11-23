@@ -13,5 +13,7 @@ window.W_STOCK_DEFAULT = [
   ['Brandy / Cognac', ['Courvoisier VS', 'Martell VS']],
   ['Tequila', ['Jose Cuervo Especial', 'Olmeca Reposado', 'Olmeca Silver']],
   ['Liqueurs & Aperitifs', ['Aperol Spritz', 'Baileys', 'Campari', 'Chambord', 'Disaronno', 'Giffard Triple Sec', 'Kahlúa', 'Martini Bianco', 'Passoã', 'Tequila Rose']],
+  ['Crisps', ['Tyrrells Cheddar & Chive', 'Tyrrells Salt & Vinegar', 'Tyrrells Sea Salt', 'Tyrrells Sweet Chilli']],
+  ['Chocolate', ['Cadbury Dairy Milk', 'KitKat Chunky']],
   ['Syrups & Cordials', ['Blackcurrant Cordial', 'Britvic Lime Cordial', 'Finest Call Lemon Juice', 'Giffard Lychee', 'Giffard Orgeat', 'Monin Cane Sugar', 'Monin Grenadine', 'Monin Passion Fruit', 'Monin Strawberry', 'Orange Cordial']]
 ];

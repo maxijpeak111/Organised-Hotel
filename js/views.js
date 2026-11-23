@@ -117,6 +117,7 @@ W.views.rota = function (app) {
   let hours = 0;
   days.forEach(d => { const sh = s.shifts[d]; if (sh && sh.start && sh.end) { let [a, b] = [sh.start, sh.end].map(x => { const [hh, mm] = x.split(':').map(Number); return hh + mm / 60; }); if (b <= a) b += 24; hours += b - a; } });
   W.fill(app,
+    W.backToMore(),
     h('h1', {}, 'Rota'),
     h('div', { class: 'week-nav' },
       h('button', { class: 'icon-btn', onclick: () => { rotaWeek = W.addDays(rotaWeek, -7); W.render(); } }, '‹'),
@@ -155,6 +156,7 @@ W.views.ideas = function (app) {
   const list = s.ideas.filter(i => ideaTab === 'open' ? !['done', 'no'].includes(i.status) : ['done', 'no'].includes(i.status)).sort((a, b) => order[a.status] - order[b.status] || (b.created < a.created ? -1 : 1));
   const lab = Object.fromEntries(W.IDEA_STATUS);
   W.fill(app,
+    W.backToMore(),
     h('h1', {}, 'Ideas'),
     h('p', { class: 'muted', style: 'margin-top:-10px' }, 'Ways to improve the business. Note them down before you forget.'),
     W.seg([['open', 'Open'], ['closed', 'Done / dropped']], ideaTab, v => { ideaTab = v; W.render(); }),

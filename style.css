@@ -186,3 +186,21 @@ h2 .count{text-transform:none}
 @keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.9}}
 .cele{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);background:var(--brown);color:#fff;font-weight:800;font-size:18px;padding:14px 22px;border-radius:999px;animation:pop .35s ease-out;white-space:nowrap}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(.6);opacity:0}}
+.card.meet{border-left-width:1px;background:#fff}
+.back{display:inline-block;margin:8px 0 -6px;font-weight:800;color:var(--blue);text-decoration:none;font-size:15px}
+.more-item{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--text)}
+.more-item.soon{opacity:.6}
+.more-icon{width:44px;height:44px;border-radius:14px;background:var(--yellow-soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+.more-item .t{font-weight:800}
+.money-goal{padding:16px}
+.money-big{font-size:38px;font-weight:800;color:var(--brown);margin-top:4px;line-height:1.1}
+.money-bar{height:14px;background:#efe6d8;border-radius:99px;overflow:hidden;margin-top:10px}
+.money-bar>i{display:block;height:100%;background:var(--yellow);border-radius:99px;transition:width .4s}
+.money-split{display:flex;gap:16px;margin-top:10px;font-size:14px;font-weight:700;color:var(--muted)}
+.link-btn{background:none;border:0;color:var(--blue);font-weight:800;font-size:14px;padding:4px;cursor:pointer;font-family:inherit}
+.stepper{display:flex;align-items:center;gap:14px}
+.stepper .icon-btn{margin:0;width:48px;height:48px;font-size:24px}
+.stepper-val{font-size:28px;font-weight:800;min-width:36px;text-align:center;color:var(--brown)}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px}
+.stat-big{font-size:24px;font-weight:800;color:var(--brown);margin:2px 0}

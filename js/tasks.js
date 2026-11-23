@@ -399,9 +399,9 @@ W.planList = function (items, opts) {
 };
 
 /* ============ TEAM TASKS (handed out to staff) ============ */
-W.editTeam = function (x) {
+W.editTeam = function (x, preset, onSave) {
   const isNew = !x;
-  const d = x ? { ...x } : { id: W.uid(), title: '', who: '', date: '', time: '', notes: '', done: false, doneAt: '' };
+  const d = x ? { ...x } : Object.assign({ id: W.uid(), title: '', who: '', date: '', time: '', notes: '', done: false, doneAt: '' }, preset || {});
   const title = h('input', { value: d.title, placeholder: 'e.g. Restock fridges before 5pm' });
   const names = W.staffNames();
   const who = h('input', { value: d.who, placeholder: 'Who is it for? (optional)', list: 'who-list' });
@@ -419,12 +419,13 @@ W.editTeam = function (x) {
       if (!title.value.trim()) return W.toast('Add the task');
       Object.assign(d, { title: title.value.trim(), who: who.value.trim(), date: date.value, time: time.value, notes: notes.value.trim() });
       W.addStaff(d.who);
+      if (onSave) onSave(d);
       if (isNew) S().team.push(d); else Object.assign(x, d);
       W.save(); W.close(); W.render();
     } }, 'Save'),
     !isNew && h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this team task?', () => { S().team = S().team.filter(y => y.id !== x.id); W.save(); W.render(); }) }, 'Delete')
   ]);
-  if (isNew) setTimeout(() => title.focus(), 50);
+  if (isNew && !d.title) setTimeout(() => title.focus(), 50);
 };
 W.teamRow = function (x) {
   const late = !x.done && x.date && x.date < W.today();

@@ -38,9 +38,9 @@ W.views.today = function (app) {
   const hr = new Date().getHours();
   const title = isToday ? (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ' 👋' : W.relDay(D);
 
-  // Coming up: next 7 days (not daily ones), each repeating task shown once
+  // Coming up: next 3 days (2 weeks with Show more), not daily ones, each repeating task shown once
   const seen = new Set(items.map(i => i.task.id).concat(overdue.map(i => i.task.id)));
-  const upDays = [...Array(7)].map((_, i) => W.addDays(D, i + 1)).map(d => ({
+  const upDays = [...Array(W.upMore ? 14 : 3)].map((_, i) => W.addDays(D, i + 1)).map(d => ({
     d, items: W.dayItems(d).filter(i => i.task.repeat !== 'daily' && !W.isDone(i.task, i.occ) && !seen.has(i.task.id) && seen.add(i.task.id))
   })).filter(x => x.items.length);
   const anytime = s.tasks.filter(x => x.repeat === 'none' && !x.done && !x.date);
@@ -98,9 +98,10 @@ W.views.today = function (app) {
     // COMING UP
     W.head('Coming up', null),
     upDays.length || anytime.length ? W.card(
-      upDays.map(x => [h('div', { class: 'up-day' }, W.relDay(x.d) + (W.daysBetween(t, x.d) > 1 && W.daysBetween(t, x.d) < 7 ? ' · ' + W.shortDate(x.d) : '')), x.items.map(i => W.taskRow(i))]),
+      upDays.map(x => [h('div', { class: 'up-day' }, W.relDay(x.d) + (W.daysBetween(t, x.d) > 1 ? (W.daysBetween(t, x.d) < 7 ? ' · ' + W.shortDate(x.d) : '') : '')), x.items.map(i => W.taskRow(i))]),
       anytime.length ? [h('div', { class: 'up-day' }, 'Anytime'), anytime.map(x => W.taskRow({ task: x, occ: '' }))] : null)
-      : h('div', { class: 'empty' }, 'Nothing else in the next week'),
+      : h('div', { class: 'empty' }, W.upMore ? 'Nothing else in the next 2 weeks' : 'Nothing in the next 3 days'),
+    h('button', { class: 'btn ghost small block', style: 'margin:-2px 0 6px', onclick: () => { W.upMore = !W.upMore; W.render(); } }, W.upMore ? 'Show less' : 'Show more (next 2 weeks)'),
     upDays.length ? h('p', { class: 'muted small', style: 'text-align:center' }, 'Finished today\'s plan? Tick something off early to get ahead.') : null,
 
     // CLOSE DAY
@@ -173,20 +174,50 @@ document.addEventListener('touchend', e => {
 
 /* =================== JOURNAL =================== */
 W.journalDay = null;
+W.MEETINGS = [['note', 'Note'], ['m1030', '10:30 meeting'], ['m1500', '15:00 meeting'], ['ops', 'Ops meeting']];
+const meetName = k => (W.MEETINGS.find(m => m[0] === k) || [0, 'Meeting'])[1];
+let jMode = 'note';
 W.views.journal = function (app) {
   const t = W.today(), s = S();
   const D = W.journalDay || t;
   const notes = s.journal[D] || [];
   const open = notes.filter(n => !n.sorted);
-  const box = h('textarea', { placeholder: 'What happened? What should you remember? e.g. "Ran out of limes by 9pm", "Guest in room 12 wants a cake Friday"', style: 'min-height:90px' });
+  const isMeet = jMode !== 'note';
+  const box = h('textarea', { placeholder: isMeet ? 'One point per line, e.g.\nJess to restock fridges before 5\nWedding Saturday: 80 guests now\nIdea: cocktail of the week board' : 'What happened? What should you remember? e.g. "Ran out of limes by 9pm"', style: 'min-height:' + (isMeet ? 150 : 90) + 'px' });
+  const stamp = () => { const now = new Date(); return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'); };
   const add = () => {
     const txt = box.value.trim(); if (!txt) return W.toast('Write something first');
-    const now = new Date();
-    (s.journal[D] = s.journal[D] || []).push({ id: W.uid(), time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'), text: txt, sorted: '' });
-    W.save(); W.render(); W.toast('Noted');
+    const list = (s.journal[D] = s.journal[D] || []), time = stamp();
+    if (isMeet) {
+      const mid = W.uid();
+      txt.split('\n').map(x => x.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean).forEach(line => list.push({ id: W.uid(), time, text: line, sorted: '', meet: jMode, mid }));
+      W.toast(meetName(jMode) + ' saved');
+    } else { list.push({ id: W.uid(), time, text: txt, sorted: '' }); W.toast('Noted'); }
+    W.save(); W.render();
   };
   const markSorted = (n, where) => { n.sorted = where; W.save(); };
   const pastDays = Object.keys(s.journal).filter(d => d !== D && (s.journal[d] || []).length).sort().reverse().slice(0, 14);
+
+  const noteRow = n => h('div', { class: 'jnote' + (n.sorted ? ' sorted' : '') },
+    h('div', { class: 'row between' }, n.meet ? h('span') : h('span', { class: 'jtime' }, n.time), n.sorted ? h('span', { class: 'pill ok' }, '✓ ' + n.sorted) : null),
+    h('div', { class: 'jtext', onclick: () => {
+      const ed = h('textarea', { value: n.text, style: 'min-height:140px' });
+      W.sheet('Edit note', [ed, h('button', { class: 'btn block', onclick: () => { n.text = ed.value.trim() || n.text; W.save(); W.close(); W.render(); } }, 'Save'),
+        n.sorted ? h('button', { class: 'btn ghost block', onclick: () => { n.sorted = ''; W.save(); W.close(); W.render(); } }, 'Mark as not sorted') : null,
+        h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this note?', () => { s.journal[D] = s.journal[D].filter(x => x.id !== n.id); W.save(); W.render(); }) }, 'Delete')]);
+    } }, n.text),
+    !n.sorted ? h('div', { class: 'jactions' },
+      h('span', { class: 'chip', onclick: () => W.editTask(null, Object.assign(W.parseQuick(n.text.slice(0, 160)), { notes: n.text.length > 160 ? n.text : '' }), () => markSorted(n, 'Task')) }, '→ Task'),
+      h('span', { class: 'chip', onclick: () => W.editTeam(null, { title: n.text.slice(0, 160) }, x => markSorted(n, 'Team' + (x.who ? ' · ' + x.who : ''))) }, '→ Team'),
+      h('span', { class: 'chip', onclick: () => W.editEvent(null, null, { title: n.text.slice(0, 120) }, () => markSorted(n, 'Hotel')) }, '→ Hotel'),
+      h('span', { class: 'chip', onclick: () => W.editIdea(null, { title: n.text.slice(0, 120), notes: n.text.length > 120 ? n.text : '' }, () => markSorted(n, 'Idea')) }, '→ Idea'),
+      h('span', { class: 'chip', onclick: () => { markSorted(n, 'Done'); W.render(); } }, '✓ Nothing to do')) : null);
+
+  // group meeting points under their meeting
+  const plain = notes.filter(n => !n.mid), meets = [];
+  notes.filter(n => n.mid).forEach(n => { let g = meets.find(x => x.mid === n.mid); if (!g) meets.push(g = { mid: n.mid, meet: n.meet, time: n.time, notes: [] }); g.notes.push(n); });
+  const shareTxt = () => 'Journal: ' + W.niceDate(D) + '\n\n' + [plain.length ? plain.map(n => n.time + '  ' + n.text).join('\n') : '',
+    meets.map(g => meetName(g.meet).toUpperCase() + ' (' + g.time + ')\n' + g.notes.map(n => '• ' + n.text).join('\n')).join('\n\n')].filter(Boolean).join('\n\n');
 
   W.fill(app,
     h('h1', {}, 'Journal'),
@@ -195,32 +226,26 @@ W.views.journal = function (app) {
       h('div', { class: 'grow' }, D === t ? 'Today' : W.relDay(D), h('div', { class: 'muted small', style: 'font-weight:600' }, W.niceDate(D))),
       h('button', { class: 'icon-btn', disabled: D >= t, onclick: () => { W.journalDay = W.addDays(D, 1); W.render(); } }, '›')),
 
-    D === t ? h('div', { class: 'card' }, box, h('button', { class: 'btn block', onclick: add }, 'Add note')) : null,
+    D === t ? h('div', { class: 'card' },
+      W.chips(W.MEETINGS, jMode, v => { jMode = v; W.render(); }),
+      box, h('button', { class: 'btn block', onclick: add }, isMeet ? 'Save ' + meetName(jMode).toLowerCase() + ' notes' : 'Add note'),
+      isMeet ? h('p', { class: 'muted small' }, 'Each line becomes its own point, so you can send each one to the right place afterwards.') : null) : null,
 
-    head(D === t ? 'Today\'s notes' : 'Notes', notes.length || null),
-    notes.length ? card(notes.map(n => h('div', { class: 'jnote' + (n.sorted ? ' sorted' : '') },
-      h('div', { class: 'row between' }, h('span', { class: 'jtime' }, n.time), n.sorted ? h('span', { class: 'pill ok' }, '✓ ' + n.sorted) : null),
-      h('div', { class: 'jtext', onclick: () => {
-        const ed = h('textarea', { value: n.text, style: 'min-height:140px' });
-        W.sheet('Edit note', [ed, h('button', { class: 'btn block', onclick: () => { n.text = ed.value.trim() || n.text; W.save(); W.close(); W.render(); } }, 'Save'),
-          h('button', { class: 'btn danger block', onclick: () => W.confirm('Delete this note?', () => { s.journal[D] = s.journal[D].filter(x => x.id !== n.id); W.save(); W.render(); }) }, 'Delete')]);
-      } }, n.text),
-      !n.sorted ? h('div', { class: 'jactions' },
-        h('span', { class: 'chip', onclick: () => W.editTask(null, Object.assign(W.parseQuick(n.text.slice(0, 160)), { notes: n.text.length > 160 ? n.text : '' }), () => markSorted(n, 'Task')) }, '→ Task'),
-        h('span', { class: 'chip', onclick: () => W.editEvent(null, null, { title: n.text.slice(0, 120) }, () => markSorted(n, 'Hotel')) }, '→ Hotel'),
-        h('span', { class: 'chip', onclick: () => W.editIdea(null, { title: n.text.slice(0, 120), notes: n.text.length > 120 ? n.text : '' }, () => markSorted(n, 'Idea')) }, '→ Idea'),
-        h('span', { class: 'chip', onclick: () => { markSorted(n, 'Done'); W.render(); } }, '✓ Nothing to do')) : null)))
-      : h('div', { class: 'empty' }, D === t ? 'No notes yet today. Add things as they come up.' : 'No notes this day'),
+    plain.length || !meets.length ? [head(D === t ? 'Today\'s notes' : 'Notes', plain.length || null),
+      plain.length ? card(plain.map(noteRow)) : h('div', { class: 'empty' }, D === t ? 'No notes yet today. Add things as they come up.' : 'No notes this day')] : null,
+
+    meets.map(g => [h('h2', {}, h('span', {}, '🗣 ' + meetName(g.meet) + ' · ' + g.time), h('span', { class: 'count' }, g.notes.filter(n => !n.sorted).length ? g.notes.filter(n => !n.sorted).length + ' to sort' : '✓')),
+      h('div', { class: 'card meet' }, g.notes.map(noteRow))]),
 
     notes.length ? h('div', { class: 'card review' },
-      h('div', { style: 'font-weight:800' }, open.length ? '🌙 End of shift: ' + open.length + ' note' + (open.length > 1 ? 's' : '') + ' to sort' : '🌙 All sorted. Nice work'),
-      h('div', { class: 'muted small' }, open.length ? 'Read back over your notes and turn each one into a task, something happening in the hotel, an idea, or mark it as nothing to do.' : 'Everything from this day has been organised.'),
-      h('button', { class: 'btn ghost block', onclick: () => W.share('Journal ' + W.niceDate(D), 'Journal: ' + W.niceDate(D) + '\n\n' + notes.map(n => n.time + '  ' + n.text).join('\n')) }, 'Share notes')) : null,
+      h('div', { style: 'font-weight:800' }, open.length ? '🌙 ' + open.length + ' point' + (open.length > 1 ? 's' : '') + ' to sort' : '🌙 All sorted. Nice work'),
+      h('div', { class: 'muted small' }, open.length ? 'Send each one to where it belongs: your tasks, a team task, the hotel diary, ideas, or mark it as nothing to do.' : 'Everything from this day has been organised.'),
+      h('button', { class: 'btn ghost block', onclick: () => W.share('Journal ' + W.niceDate(D), shareTxt()) }, 'Share notes')) : null,
 
     pastDays.length ? [head('Earlier', null), card(pastDays.map(d => {
-      const ns = s.journal[d], o = ns.filter(n => !n.sorted).length;
+      const ns = s.journal[d], o = ns.filter(n => !n.sorted).length, mt = [...new Set(ns.filter(n => n.meet).map(n => meetName(n.meet)))];
       return h('div', { class: 'item', style: 'cursor:pointer', onclick: () => { W.journalDay = d; W.render(); window.scrollTo(0, 0); } },
-        h('div', { class: 'grow' }, h('div', { class: 't' }, W.niceDate(d)), h('div', { class: 'sub' }, ns.length + ' notes' + (o ? ' · ' : ''), o ? h('span', { class: 'pill warn' }, o + ' to sort') : null)),
+        h('div', { class: 'grow' }, h('div', { class: 't' }, W.niceDate(d)), h('div', { class: 'sub' }, ns.length + ' notes' + (mt.length ? ' · ' + mt.join(', ') : '') + (o ? ' · ' : ''), o ? h('span', { class: 'pill warn' }, o + ' to sort') : null)),
         h('span', { class: 'muted' }, '›'));
     }))] : null
   );

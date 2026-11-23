@@ -42,7 +42,15 @@ W.migrateStock = function () {
   if (liq && !liq.items.some(i => /aperol/i.test(i.name))) { liq.items.push({ id: W.uid(), name: 'Aperol Spritz', low: false }); liq.items.sort((a, b) => a.name.localeCompare(b.name)); }
   s.stockV = 2; W.save();
 };
-W.migrateStock();
+W.migrateStock3 = function () {
+  const s = S();
+  if ((s.stockV || 1) >= 3 || !s.stock) return;
+  const add = (name, items) => { if (s.stock.some(x => x.name === name)) return; s.stock.push({ id: W.uid(), name, items: items.map(n => ({ id: W.uid(), name: n, low: false })) }); };
+  add('Crisps', ['Tyrrells Cheddar & Chive', 'Tyrrells Salt & Vinegar', 'Tyrrells Sea Salt', 'Tyrrells Sweet Chilli']);
+  add('Chocolate', ['Cadbury Dairy Milk', 'KitKat Chunky']);
+  s.stockV = 3; W.save();
+};
+W.migrateStock(); W.migrateStock3();
 
 function orderText() {
   const lines = ['Drinks order – ' + W.niceDate(W.today()), ''];
