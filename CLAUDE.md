@@ -40,4 +40,9 @@ Separate from the PT app — do not link or merge them.
 - Weekly jobs don't need a set day: they sit in a calm "Weekly jobs to plan" pool (`W.poolFor(D)`), and each day's plan has "📋 Add a weekly job to this day" to drop one in (`W.addToDaySheet`). Statuses use the planning period (`W.planPeriod`), never an alarm. No tasks on days off.
 - Coming up never repeats a task that's already in that day's plan or Overdue.
 - Deleting a repeating task from a day (To do / Today / Rota) removes only that occurrence (`t.skip[occ]`); deleting it for good is only in Tasks → Repeating.
+- Flexible weekly jobs can be N× a week (`t.times`; `t.placed[ps]` is a list of dates — use `W.placedIn`). "🗓 Plan my week" (`W.planWeek`) plans every flexible job at once (also on Rota). Aim: week planned at the start.
+- Close day (button at bottom of Today) → wrap-up page (left to do with "→ next shift" for one-offs, journal, next shift preview) → `state.closed[date]` → calm "Day closed" view with Reopen. Owner uses the app before and during shifts.
+- Finishing the day's list shows "🎉 All done" + confetti (`W.celebrate`).
+- Staff names saved once (`state.staff`, Settings) and tapped in team tasks and functions ("Who's on", `fd.on`). Functions must show guests, start time and who's on. Team list is for the owner's own tracking (he tells staff verbally).
+- Stock is ordered on ProcureWizard; drinks all from one supplier. Par stock page planned (owner will send a photo of his sheet).
 - Owner is a manager: team tasks are handed out to staff and shared to keep everyone in line.

@@ -15,6 +15,13 @@ W.editEvent = function (ev, date, preset, onSave) {
   d.fd = Object.assign({ guests: '', setup: '', timings: '', food: '', drinks: '', staff: '', contact: '' }, d.fd || {});
   const F = {};
   const fdField = (k, label, ph, big) => W.field(label, F[k] = h(big ? 'textarea' : 'input', Object.assign({ value: d.fd[k], placeholder: ph }, k === 'guests' ? { type: 'number', inputmode: 'numeric' } : {}, big ? { style: 'min-height:64px' } : {})));
+  d.fd.on = (d.fd.on || []).slice();
+  const whoOn = h('div');
+  const drawWho = () => W.fill(whoOn,
+    W.staffNames().map(n => h('span', { class: 'chip' + (d.fd.on.includes(n) ? ' on' : ''), onclick: () => { d.fd.on = d.fd.on.includes(n) ? d.fd.on.filter(x => x !== n) : d.fd.on.concat(n); drawWho(); } }, n)),
+    h('div', { class: 'row', style: 'margin-top:4px' }, h('input', { placeholder: 'Add a name', id: 'new-staff' }),
+      h('button', { class: 'btn ghost small', onclick: () => { const i = document.getElementById('new-staff'); const n = i.value.trim(); if (!n) return; W.addStaff(n); if (!d.fd.on.includes(n)) d.fd.on.push(n); drawWho(); } }, 'Add')));
+  drawWho();
   const fn = h('div', { class: 'fn-box', style: d.kind === 'function' ? '' : 'display:none' },
     h('div', { class: 'fn-title' }, '🥂 Function details'),
     h('div', { class: 'grid2' }, fdField('guests', 'Guests', 'e.g. 60'), fdField('contact', 'Organiser / contact', 'Name, room or phone')),
@@ -22,10 +29,11 @@ W.editEvent = function (ev, date, preset, onSave) {
     fdField('setup', 'Set-up', 'Room, tables, glassware, decorations…', true),
     fdField('food', 'Food', 'Menu, dietary needs, when it\'s served', true),
     fdField('drinks', 'Drinks', 'Package, drinks on arrival, bar tab…', true),
-    fdField('staff', 'Staff', 'Who\'s working it, how many', true));
+    W.field('Who\'s on', whoOn),
+    fdField('staff', 'Staff notes', 'Roles, extra cover, finish times…', true));
   W.sheet(isNew ? 'In the hotel' : 'Edit', [
     W.field('What', title), W.field('Type', W.chips(W.EVENT_KINDS, d.kind, v => { d.kind = v; fn.style.display = v === 'function' ? '' : 'none'; })),
-    h('div', { class: 'grid2' }, W.field('Date', dt), W.field('Time', tm)),
+    h('div', { class: 'grid2' }, W.field('Date', dt), W.field('Start time', tm)),
     fn,
     W.field('To prepare / notes', notes),
     h('button', { class: 'btn block', onclick: () => {
@@ -130,6 +138,7 @@ W.views.rota = function (app) {
         nDaily ? h('div', { class: 'muted small', style: 'margin-top:6px' }, '+ ' + nDaily + ' daily task' + (nDaily > 1 ? 's' : '')) : null,
         h('div', { style: 'margin-top:8px' }, h('span', { class: 'chip', style: 'margin:0', onclick: () => W.editEvent(null, d) }, '+ Event')));
     }),
+    h('button', { class: 'btn block', onclick: W.planWeek }, '🗓 Plan my week'),
     h('button', { class: 'btn ghost block', onclick: () => {
       const prev = W.addDays(rotaWeek, -7); let n = 0;
       for (let i = 0; i < 7; i++) { const from = s.shifts[W.addDays(prev, i)]; const to = W.addDays(rotaWeek, i); if (from && !s.shifts[to]) { s.shifts[to] = { ...from }; n++; } }
@@ -166,6 +175,9 @@ W.settings = function () {
   W.sheet('Settings', [
     W.field('Stock order day', W.chips(W.DAYS_LONG.map((d, i) => [i, d.slice(0, 3)]), Number(s.settings.orderDay), v => { s.settings.orderDay = v; W.save(); W.render(); })),
     W.field('Shift quick picks', s.settings.shiftPresets.length ? h('div', {}, s.settings.shiftPresets.map((p, i) => h('span', { class: 'chip', onclick: () => W.confirm('Remove quick pick "' + p.label + '"?', () => { s.settings.shiftPresets.splice(i, 1); W.save(); }) }, p.label + '  ✕'))) : h('p', { class: 'muted small' }, 'None yet. Add one when setting a shift.')),
+    W.field('Staff', h('div', {},
+      (s.staff || []).length ? s.staff.map((n, i) => h('span', { class: 'chip', onclick: () => W.confirm('Remove ' + n + ' from your staff list?', () => { s.staff.splice(i, 1); W.save(); }) }, n + '  ✕')) : h('p', { class: 'muted small' }, 'Add your team once, then just tap their names.'),
+      h('div', { class: 'row', style: 'margin-top:4px' }, h('input', { placeholder: 'Name', id: 'staff-add' }), h('button', { class: 'btn small', onclick: () => { const i = document.getElementById('staff-add'); W.addStaff(i.value); W.settings(); } }, 'Add')))),
     h('h2', {}, 'Backup'),
     h('p', { class: 'muted small' }, 'Everything is saved on this phone only. Make a backup now and then, so you can restore it if you change phone or clear Safari.'),
     h('button', { class: 'btn block', onclick: () => {

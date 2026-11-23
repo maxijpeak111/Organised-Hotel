@@ -26,7 +26,8 @@ W.render = function () {
   const y = window.scrollY;
   W.views[cur](app);
   const tt = cur === 'tasks' ? W.tasksTabNow() : '';
-  if (cur !== 'stock' && cur !== 'journal' && tt !== 'done') app.append(h('button', { class: 'fab', onclick: () => {
+  const closedView = cur === 'today' && (W.closing || W.state.closed[W.today()]);
+  if (cur !== 'stock' && cur !== 'journal' && tt !== 'done' && !closedView) app.append(h('button', { class: 'fab', onclick: () => {
     if (cur === 'tasks') W.openSectionForm(tt === 'repeat' ? 'repeat' : tt === 'team' ? 'team' : 'oneoff');
     else if (cur === 'ideas') W.editIdea(); else if (cur === 'rota') W.editEvent(); else W.quickAdd();
   }, 'aria-label': 'Add' }, '+'));
@@ -37,7 +38,7 @@ W.render = function () {
   window.scrollTo(0, y);
 };
 let lastTab = null;
-window.addEventListener('hashchange', () => { W.close(); if (cur === 'journal' && location.hash !== '#journal') W.journalDay = null; W.render(); if (cur !== lastTab) window.scrollTo(0, 0); lastTab = cur; });
+window.addEventListener('hashchange', () => { W.close(); if (location.hash !== '#today' && location.hash) W.closing = false; if (cur === 'journal' && location.hash !== '#journal') W.journalDay = null; W.render(); if (cur !== lastTab) window.scrollTo(0, 0); lastTab = cur; });
 // Refresh "today" if the app is left open past midnight
 let day = W.today();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && W.today() !== day) { day = W.today(); W.render(); } });

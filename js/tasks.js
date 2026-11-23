@@ -19,7 +19,7 @@ const ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12
 // Flexible = weekly/2-weekly with no day chosen, or monthly with no date: you pick the day each period.
 W.isFlex = t => ((t.repeat === 'weekly' || t.repeat === 'biweekly') && !(t.days || []).length) || (t.repeat === 'monthly' && !t.mday);
 W.repeatLabel = t => t.repeat === 'daily' ? 'Every shift' :
-  t.repeat === 'weekly' ? 'Weekly · ' + (daysLabel(t.days) || 'you pick the day') :
+  t.repeat === 'weekly' ? ((t.times || 1) > 1 && !(t.days || []).length ? t.times + '× a week · you pick the days' : 'Weekly · ' + (daysLabel(t.days) || 'you pick the day')) :
   t.repeat === 'biweekly' ? 'Every 2 weeks · ' + (daysLabel(t.days) || 'you pick the day') :
   t.repeat === 'monthly' ? 'Monthly · ' + (t.mday ? ord(t.mday) : 'you pick the day') : 'One-off';
 
@@ -45,7 +45,7 @@ W.occursOn = function (t, D) {
   if (D < (t.start || '0') && !(W.isFlex(t) && W.periodEnd(t, D) >= (t.start || '0'))) return false;
   if ((t.skip || {})[D]) return false;
   if (t.repeat === 'daily') return W.isShift(D);
-  if (W.isFlex(t)) return (t.placed || {})[W.periodStart(t, D)] === D;
+  if (W.isFlex(t)) return W.placedIn(t, W.periodStart(t, D)).includes(D);
   if (t.repeat === 'weekly') return (t.days || []).includes(dow(D));
   if (t.repeat === 'biweekly') return (t.days || []).includes(dow(D)) && W.periodStart(t, D) === W.weekStart(D);
   if (t.repeat === 'monthly') return W.parse(D).getDate() === Math.min(t.mday, lastDayOfMonth(D));
@@ -63,7 +63,7 @@ W.effDate = function (t, occ) {
 // Which period to plan a flexible job in: this one, or the next if no working days are left in this one
 W.planPeriod = function (t) {
   const t0 = W.today(), ps = W.periodStart(t, t0), pe = W.periodEnd(t, t0);
-  if ((t.placed || {})[ps] || doneInPeriod(t, ps)) return ps;
+  if (W.placedIn(t, ps).length || isSkip(t, ps) || doneCount(t, ps)) return ps;
   for (let d = t0; d <= pe; d = W.addDays(d, 1)) if (W.isShift(d) || (!S().shifts[d] && d > t0)) return ps;
   return W.addDays(pe, 1);
 };
@@ -73,7 +73,14 @@ W.setDone = function (t, occ, val) {
   else { t.doneDates = t.doneDates || {}; if (val) t.doneDates[occ] = W.today(); else delete t.doneDates[occ]; }
   W.save();
 };
-const doneInPeriod = (t, ps) => { const pe = W.periodEnd(t, ps); return Object.keys(t.doneDates || {}).some(k => k >= ps && k <= pe); };
+const doneInPeriod = (t, ps) => doneCount(t, ps) >= (t.times || 1);
+const doneCount = (t, ps) => { const pe = W.periodEnd(t, ps); return Object.keys(t.doneDates || {}).filter(k => k >= ps && k <= pe).length; };
+// Days a flexible job is planned for in a period (stored as a list; older data was a single date or 'skip')
+W.placedIn = (t, ps) => { const v = (t.placed || {})[ps]; return Array.isArray(v) ? v.slice() : v && v !== 'skip' ? [v] : []; };
+const isSkip = (t, ps) => (t.placed || {})[ps] === 'skip';
+const setPlaced = (t, ps, list) => { t.placed = t.placed || {}; if (list.length) t.placed[ps] = list.sort(); else delete t.placed[ps]; W.save(); };
+// How many more days still need planning in a period
+W.leftToPlan = (t, ps) => isSkip(t, ps) || doneInPeriod(t, ps) ? 0 : Math.max(0, (t.times || 1) - W.placedIn(t, ps).length);
 
 const sortItems = arr => arr.sort((a, b) => {
   const at = a.task.time || '', bt = b.task.time || '';
@@ -113,8 +120,7 @@ W.needsDay = function () {
     if (!W.isFlex(t)) return false;
     const ps = W.planPeriod(t);
     if (W.periodEnd(t, ps) < (t.start || t0)) return false;
-    const pl = (t.placed || {})[ps];
-    return !pl && !doneInPeriod(t, ps);
+    return W.leftToPlan(t, ps) > 0;
   });
 };
 // Flexible jobs still to plan in the week/fortnight/month that day D falls in
@@ -123,48 +129,80 @@ W.poolFor = function (D) {
     if (!W.isFlex(t)) return false;
     const ps = W.periodStart(t, D);
     if (W.periodEnd(t, ps) < (t.start || W.today())) return false;
-    return !(t.placed || {})[ps] && !doneInPeriod(t, ps);
+    const ps2 = W.periodStart(t, D);
+    return W.leftToPlan(t, ps2) > 0 && !W.placedIn(t, ps2).includes(D);
   });
 };
 W.addToDaySheet = function (D) {
   const pool = W.poolFor(D);
   W.sheet('Add to ' + W.relDay(D), [
     h('p', { class: 'muted' }, 'Weekly jobs you haven\'t planned yet. Tap one to do it on ' + W.niceDate(D) + '.'),
-    W.card(pool.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => { t.placed = t.placed || {}; t.placed[W.periodStart(t, D)] = D; W.save(); W.close(); W.render(); W.toast('Added to ' + W.relDay(D).toLowerCase()); } },
-      h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title), h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]))),
+    W.card(pool.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => { const ps = W.periodStart(t, D); setPlaced(t, ps, W.placedIn(t, ps).concat(D)); W.close(); W.render(); W.toast('Added to ' + W.relDay(D).toLowerCase()); } },
+      h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title), h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]), (t.times || 1) > 1 ? W.leftToPlan(t, W.periodStart(t, D)) + ' more to plan' : null)),
       h('span', { class: 'pill blue' }, '+ Add'))))
   ]);
 };
-// Pick (or change) the day for a flexible task this period
-W.placeSheet = function (t) {
-  const t0 = W.today(), ps = W.planPeriod(t), pe = W.periodEnd(t, ps);
-  const nextP = ps > t0;
-  const per = (nextP ? 'next ' : 'this ') + (t.repeat === 'monthly' ? 'month' : t.repeat === 'biweekly' ? 'fortnight' : 'week');
-  const set = v => { t.placed = t.placed || {}; t.placed[ps] = v; W.save(); W.close(); W.render(); };
-  const days = []; for (let d = nextP ? ps : t0; d <= pe; d = W.addDays(d, 1)) if (!isOff(d)) days.push(d);
-  const cur = (t.placed || {})[ps];
-  W.sheet(t.title, [
-    h('p', { class: 'muted' }, 'Which day will you do it ' + per + '?'),
-    h('div', {}, days.map(d => h('span', { class: 'chip day-chip' + (cur === d ? ' on' : '') + (W.isShift(d) ? '' : ' dim'), onclick: () => set(d) },
+// Pick (or change) the day(s) for a flexible task this period
+const perName = t => t.repeat === 'monthly' ? 'month' : t.repeat === 'biweekly' ? 'fortnight' : 'week';
+const dayChips = (t, ps, onChange) => {
+  const t0 = W.today(), pe = W.periodEnd(t, ps);
+  const days = []; for (let d = ps > t0 ? ps : t0; d <= pe; d = W.addDays(d, 1)) if (!isOff(d)) days.push(d);
+  const wrap = h('div', { class: 'day-chips' });
+  const draw = () => {
+    const cur = W.placedIn(t, ps);
+    W.fill(wrap, days.map(d => h('span', { class: 'chip day-chip' + (cur.includes(d) ? ' on' : '') + (W.isShift(d) ? '' : ' dim'), onclick: () => {
+      const list = W.placedIn(t, ps);
+      setPlaced(t, ps, list.includes(d) ? list.filter(x => x !== d) : (t.times || 1) === 1 ? [d] : list.concat(d));
+      draw(); if (onChange) onChange();
+    } },
       h('b', {}, W.relDay(d) === 'Today' || W.relDay(d) === 'Tomorrow' ? W.relDay(d) : W.dayName(d) + ' ' + W.parse(d).getDate()),
-      h('small', {}, W.isShift(d) ? W.fmtShift(S().shifts[d]) : 'no shift yet')))),
-    !days.length ? h('p', { class: 'muted small' }, 'No working days left ' + per + '.') : null,
+      h('small', {}, W.isShift(d) ? W.fmtShift(S().shifts[d]) : 'no shift yet'))), !days.length ? h('p', { class: 'muted small' }, 'No working days left.') : null);
+  };
+  draw();
+  return wrap;
+};
+W.placeSheet = function (t) {
+  const t0 = W.today(), ps = W.planPeriod(t), nextP = ps > t0;
+  const per = (nextP ? 'next ' : 'this ') + perName(t), n = t.times || 1;
+  const info = h('p', { class: 'muted' });
+  const upd = () => { const k = W.placedIn(t, ps).length; info.textContent = n === 1 ? 'Which day will you do it ' + per + '?' : 'Pick ' + n + ' days ' + per + ' (' + k + ' of ' + n + ' picked).'; };
+  upd();
+  W.sheet(t.title, [
+    info, dayChips(t, ps, upd),
+    h('button', { class: 'btn block', onclick: () => { W.close(); W.render(); } }, 'Done'),
     h('div', { class: 'grid2', style: 'margin-top:10px' },
-      nextP ? null : h('button', { class: 'btn ghost', onclick: () => { W.setDone(t, t0, true); t.placed = t.placed || {}; t.placed[ps] = t0; W.save(); W.close(); W.render(); W.toast('Done ✓'); } }, '✓ Done already'),
-      h('button', { class: 'btn ghost', onclick: () => set('skip') }, 'Skip ' + per)),
-    cur ? h('button', { class: 'btn danger block', onclick: () => { delete t.placed[ps]; W.save(); W.close(); W.render(); } }, 'Unplan it') : null
+      nextP ? null : h('button', { class: 'btn ghost', onclick: () => { W.setDone(t, t0, true); const l = W.placedIn(t, ps); setPlaced(t, ps, l.includes(t0) ? l : l.concat(t0)); W.close(); W.render(); W.toast('Done ✓'); } }, '✓ Did it today'),
+      h('button', { class: 'btn ghost', onclick: () => { t.placed = t.placed || {}; t.placed[ps] = 'skip'; W.save(); W.close(); W.render(); } }, 'Skip ' + per))
+  ]);
+};
+// Plan my week: every flexible job with its day buttons on one screen
+W.planWeek = function () {
+  const t0 = W.today();
+  const jobs = S().tasks.filter(t => W.isFlex(t) && W.periodEnd(t, W.planPeriod(t)) >= (t.start || t0) && !isSkip(t, W.planPeriod(t)));
+  W.sheet('🗓 Plan my week', [
+    h('p', { class: 'muted' }, 'Tap the days you\'ll do each job. Your shift times are under each day.'),
+    jobs.length ? jobs.map(t => {
+      const ps = W.planPeriod(t), n = t.times || 1;
+      const lab = h('div', { class: 'muted small' });
+      const upd = () => { lab.textContent = W.repeatLabel(t) + (n > 1 ? ' · ' + W.placedIn(t, ps).length + ' of ' + n + ' picked' : '') + (ps > t0 ? ' · next ' + perName(t) : ''); };
+      upd();
+      return h('div', { class: 'plan-job' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title), lab, dayChips(t, ps, upd));
+    }) : h('div', { class: 'empty' }, 'No flexible jobs yet. Add a weekly job without picking a day and it shows here.'),
+    h('button', { class: 'btn block', onclick: () => { W.close(); W.render(); } }, 'Done')
   ]);
 };
 W.needsDaySection = function () {
   const list = W.needsDay();
   if (!list.length) return null;
   return h('div', { class: 'card needs' },
-    h('div', { class: 'needs-head' }, '📋 Weekly jobs to plan', h('div', { class: 'muted small', style: 'font-weight:600' }, 'Tap one to choose its day, or use "Add a weekly job" on any day\'s plan.')),
+    h('div', { class: 'row between', style: 'align-items:flex-start' }, h('div', { class: 'needs-head grow' }, '📋 Weekly jobs to plan', h('div', { class: 'muted small', style: 'font-weight:600' }, 'Choose the days at the start of the week.')),
+      h('button', { class: 'btn small', onclick: W.planWeek }, '🗓 Plan my week')),
     list.map(t => h('div', { class: 'item', style: 'cursor:pointer', onclick: () => W.placeSheet(t) },
       h('div', { class: 'grow' }, h('div', { class: 't' }, t.flag ? '🚩 ' : '', t.clean ? '🧽 ' : '', t.title),
-        h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]), (W.planPeriod(t) > W.today() ? (t.repeat === 'monthly' ? 'next month' : 'next ' + (t.repeat === 'biweekly' ? 'fortnight' : 'week')) : 'by ' + W.niceDate(W.periodEnd(t, W.today()))))),
+        h('div', { class: 'sub' }, h('span', { class: 'pill' }, W.repeatLabel(t).split(' · ')[0]), (t.times || 1) > 1 ? W.leftToPlan(t, W.planPeriod(t)) + ' more to plan · ' : '', (W.planPeriod(t) > W.today() ? (t.repeat === 'monthly' ? 'next month' : 'next ' + (t.repeat === 'biweekly' ? 'fortnight' : 'week')) : 'by ' + W.niceDate(W.periodEnd(t, W.today()))))),
       h('span', { class: 'pill blue' }, 'Choose day ›'))));
 };
+W.allDoneToday = () => { const it = W.dayItems(W.today()); return it.length > 0 && it.every(i => W.isDone(i.task, i.occ)); };
 W.openTeam = () => S().team.filter(x => !x.done);
 
 /* ============ MIGRATION from the first version (tasks + separate cleaning) ============ */
@@ -195,7 +233,7 @@ const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, 
 W.parseQuick = function (text) {
   let s = ' ' + text + ' ';
   const take = re => { const m = s.match(re); if (m) s = s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length); return m; };
-  const r = { title: '', date: '', time: '', repeat: 'none', days: [], mday: 0, flag: false, clean: false };
+  const r = { title: '', date: '', time: '', repeat: 'none', days: [], mday: 0, times: 1, flag: false, clean: false };
   const t0 = W.today();
 
   if (take(/\s(!+|urgent|important|asap)(?=\s)/i)) r.flag = true;
@@ -211,6 +249,7 @@ W.parseQuick = function (text) {
   if (take(/\s(every\s+shift|each\s+shift|daily|every\s*day|each\s+day)(?=\s)/i)) r.repeat = 'daily';
   else if (take(/\s(every\s+other(\s+week)?|fortnightly|bi-?weekly|every\s+(?:2|two)\s+weeks)(?=\s)/i)) { r.repeat = 'biweekly'; r.days = grabDays(); }
   else if (take(/\s(monthly|every\s+month)(?=\s)/i)) { r.repeat = 'monthly'; const d = take(/\s(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?=\s)/i); r.mday = d ? Math.min(31, +d[1]) : 0; }
+  else if ((m = take(/\s(once|twice|two times|three times|four times|five times|\d)\s*(?:x|times)?\s*(?:a|per|each)\s+week(?=\s)/i))) { const w = m[1].toLowerCase(); r.repeat = 'weekly'; r.times = { once: 1, twice: 2, 'two times': 2, 'three times': 3, 'four times': 4, 'five times': 5 }[w] || Math.min(7, +w) || 1; r.days = grabDays(); }
   else if (take(/\s(weekly|every\s+week|each\s+week)(?=\s)/i)) { r.repeat = 'weekly'; r.days = grabDays(); }
   else if ((m = s.match(new RegExp('\\s(?:every|each)\\s+' + DAYRE, 'i')))) { s = s.replace(/\s(every|each)\s+/i, ' '); r.repeat = 'weekly'; r.days = grabDays(); }
 
@@ -237,8 +276,8 @@ W.parseQuick = function (text) {
   function hhmm(hr, mn, ap) { ap = (ap || '').toLowerCase(); if (ap === 'pm' && hr < 12) hr += 12; if (ap === 'am' && hr === 12) hr = 0; return String(Math.min(hr, 23)).padStart(2, '0') + ':' + String(Math.min(mn, 59)).padStart(2, '0'); }
   function ymd(d, mo) { const now = W.parse(t0); let x = new Date(now.getFullYear(), mo, d); if (W.dstr(x) < t0) x = new Date(now.getFullYear() + 1, mo, d); return W.dstr(x); }
 };
-const newTask = p => Object.assign({ id: W.uid(), title: '', notes: '', repeat: 'none', date: '', days: [], mday: 0, time: '', flag: false, clean: false, done: false, doneAt: '', doneDates: {}, start: W.today() }, p || {});
-W.usePreset = p => W.editTask(null, { title: p.title, notes: p.notes, repeat: p.repeat, days: (p.days || []).slice(), mday: p.mday, time: p.time, flag: p.flag, clean: p.clean });
+const newTask = p => Object.assign({ id: W.uid(), title: '', notes: '', repeat: 'none', date: '', days: [], mday: 0, times: 1, time: '', flag: false, clean: false, done: false, doneAt: '', doneDates: {}, start: W.today() }, p || {});
+W.usePreset = p => W.editTask(null, { title: p.title, notes: p.notes, repeat: p.repeat, days: (p.days || []).slice(), mday: p.mday, times: p.times || 1, time: p.time, flag: p.flag, clean: p.clean });
 const describe = p => [
   p.repeat === 'none' ? '📅 ' + (p.date ? W.relDay(p.date) + (W.daysBetween(W.today(), p.date) > 6 ? '' : ' · ' + W.shortDate(p.date)) : 'No date') : '🔁 ' + W.repeatLabel(p),
   p.time ? '⏰ ' + p.time : null, p.flag ? '🚩 Important' : null, p.clean ? '🧽 Cleaning' : null
@@ -290,7 +329,8 @@ W.editTask = function (t, preset, onSave, mode, occ) {
     d.repeat === 'daily' ? h('p', { class: 'muted small' }, 'Shows on every day you have a shift on the rota. If it isn\'t done, it just drops off. A fresh one comes next shift.') : null,
     d.repeat === 'weekly' || d.repeat === 'biweekly' ? W.field('On which day(s)', h('div', {},
       WEEK_ORDER.map(n => h('span', { class: 'chip' + (d.days.includes(n) ? ' on' : ''), onclick: e => { d.days = d.days.includes(n) ? d.days.filter(x => x !== n) : d.days.concat(n); e.target.classList.toggle('on'); } }, DAY_SHORT[n])),
-      h('p', { class: 'muted small' }, 'Optional. Leave blank if you\'ll decide the day each ' + (d.repeat === 'weekly' ? 'week' : 'fortnight') + '. You\'ll get a reminder to pick one. If it lands on a day off, it moves to your next shift.'))) : null,
+      d.repeat === 'weekly' ? W.field('How many times a week', W.chips([[1, 'Once'], [2, '2×'], [3, '3×'], [4, '4×'], [5, '5×']], d.times || 1, v => { d.times = v; })) : null,
+      h('p', { class: 'muted small' }, 'Days are optional. Leave them blank if you\'ll decide each ' + (d.repeat === 'weekly' ? 'week' : 'fortnight') + '. You\'ll get a reminder to pick one. If it lands on a day off, it moves to your next shift.'))) : null,
     d.repeat === 'monthly' ? W.field('Day of the month (optional)', mday) : null);
   const flagBtn = h('span', { class: 'chip' + (d.flag ? ' on' : ''), onclick: e => { d.flag = !d.flag; e.target.classList.toggle('on'); } }, '🚩 Important');
   const cleanBtn = h('span', { class: 'chip' + (d.clean ? ' on' : ''), onclick: e => { d.clean = !d.clean; e.target.classList.toggle('on'); } }, '🧽 Cleaning');
@@ -307,9 +347,10 @@ W.editTask = function (t, preset, onSave, mode, occ) {
     h('button', { class: 'btn block', onclick: () => {
       if (!title.value.trim()) return W.toast('Add a task name');
       if (!d.repeat) return W.toast('Choose how often');
+      if ((d.days || []).length || d.repeat !== 'weekly') d.times = 1;
       Object.assign(d, { title: title.value.trim(), date: d.repeat === 'none' ? date.value : '', time: time.value, notes: notes.value.trim(), mday: mday.value ? Math.min(31, Math.max(1, Number(mday.value))) : 0 });
       if (isNew) S().tasks.push(d); else Object.assign(t, d);
-      if (asPreset) { S().presets.push({ id: W.uid(), title: d.title, notes: d.notes, repeat: d.repeat, days: d.days.slice(), mday: d.mday, time: d.time, flag: d.flag, clean: d.clean }); W.toast('Saved as a preset'); }
+      if (asPreset) { S().presets.push({ id: W.uid(), title: d.title, notes: d.notes, repeat: d.repeat, days: d.days.slice(), mday: d.mday, times: d.times || 1, time: d.time, flag: d.flag, clean: d.clean }); W.toast('Saved as a preset'); }
       if (onSave) onSave(d);
       W.save(); W.close(); W.render();
     } }, 'Save'),
@@ -327,7 +368,7 @@ W.taskRow = function (it, opts) {
   opts = opts || {};
   const t = it.task, done = W.isDone(t, it.occ);
   return h('div', { class: 'item' + (done ? ' done' : '') + (t.flag && !done ? ' flagged' : '') },
-    h('input', { type: 'checkbox', checked: done, onchange: e => { W.setDone(t, it.occ, e.target.checked); W.toast(e.target.checked ? 'Done ✓' : 'Re-opened'); setTimeout(W.render, 250); } }),
+    h('input', { type: 'checkbox', checked: done, onchange: e => { const before = W.allDoneToday(); W.setDone(t, it.occ, e.target.checked); if (!before && W.allDoneToday()) W.celebrate(); else W.toast(e.target.checked ? 'Done ✓' : 'Re-opened'); setTimeout(W.render, 250); } }),
     h('div', { class: 'grow', onclick: () => W.editTask(t, null, null, undefined, it.occ) },
       h('div', { class: 't' }, t.flag ? h('span', { class: 'flag' }, '🚩 ') : null, t.title),
       h('div', { class: 'sub' },
@@ -362,7 +403,7 @@ W.editTeam = function (x) {
   const isNew = !x;
   const d = x ? { ...x } : { id: W.uid(), title: '', who: '', date: '', time: '', notes: '', done: false, doneAt: '' };
   const title = h('input', { value: d.title, placeholder: 'e.g. Restock fridges before 5pm' });
-  const names = [...new Set(S().team.map(t => t.who).filter(Boolean))];
+  const names = W.staffNames();
   const who = h('input', { value: d.who, placeholder: 'Who is it for? (optional)', list: 'who-list' });
   const date = h('input', { type: 'date', value: d.date });
   const time = h('input', { type: 'time', value: d.time });
@@ -370,13 +411,14 @@ W.editTeam = function (x) {
   W.sheet(isNew ? 'Hand out a task' : 'Team task', [
     W.field('Task', title),
     W.field('For', h('div', {}, who, h('datalist', { id: 'who-list' }, names.map(n => h('option', { value: n }))),
-      names.length ? h('div', { style: 'margin-top:6px' }, names.slice(0, 8).map(n => h('span', { class: 'chip', onclick: () => { who.value = n; } }, n))) : null)),
+      names.length ? h('div', { style: 'margin-top:6px' }, names.map(n => h('span', { class: 'chip', onclick: () => { who.value = n; } }, n))) : null)),
     h('div', { class: 'grid2' }, W.field('When (optional)', date), W.field('Time (optional)', time)),
     W.chips([[W.today(), 'Today'], [W.addDays(W.today(), 1), 'Tomorrow'], ['', 'No date']], isNew && !d.date ? null : d.date, v => { date.value = v; }),
     W.field('Notes', notes),
     h('button', { class: 'btn block', onclick: () => {
       if (!title.value.trim()) return W.toast('Add the task');
       Object.assign(d, { title: title.value.trim(), who: who.value.trim(), date: date.value, time: time.value, notes: notes.value.trim() });
+      W.addStaff(d.who);
       if (isNew) S().team.push(d); else Object.assign(x, d);
       W.save(); W.close(); W.render();
     } }, 'Save'),
@@ -501,10 +543,12 @@ function repeatRow(t) {
     const occs = []; for (let d = ps; d <= pe; d = W.addDays(d, 1)) if (W.occursOn(t, d)) occs.push(d);
     const doneOn = () => W.dayName(Object.values(t.doneDates || {}).filter(x => x >= ps).sort().pop() || t0);
     if (W.isFlex(t)) {
-      const pp = W.planPeriod(t), pl = (t.placed || {})[pp], nxt = pp > ps ? 'next ' : 'this ';
-      status = doneInPeriod(t, pp) ? ['ok', '✓ Done ' + doneOn()] : pl === 'skip' ? ['', 'Skipped ' + nxt + per]
-        : pl ? (W.effDate(t, pl) < t0 ? ['red', '⚠ Not done (was ' + W.dayName(W.effDate(t, pl)) + ')'] : ['ok', '📅 Planned ' + W.relDay(W.effDate(t, pl)) + (W.daysBetween(t0, W.effDate(t, pl)) > 1 ? ' ' + W.shortDate(W.effDate(t, pl)) : '')])
-        : ['warn', 'Not planned ' + nxt + per + ' yet'];
+      const pp = W.planPeriod(t), pls = W.placedIn(t, pp), nxt = pp > ps ? 'next ' : 'this ', n = t.times || 1;
+      const missedP = pls.filter(d => W.effDate(t, d) < t0 && !W.isDone(t, d));
+      status = doneInPeriod(t, pp) ? ['ok', '✓ Done' + (n > 1 ? ' ' + n + '×' : ' ' + doneOn())] : isSkip(t, pp) ? ['', 'Skipped ' + nxt + per]
+        : missedP.length ? ['red', '⚠ Not done (was ' + missedP.map(d => W.dayName(W.effDate(t, d))).join(', ') + ')']
+        : pls.length >= n ? ['ok', '📅 Planned ' + pls.map(d => W.dayName(W.effDate(t, d))).join(', ')]
+        : ['warn', pls.length ? pls.length + ' of ' + n + ' planned' : 'Not planned ' + nxt + per + ' yet'];
     } else {
       const missed = occs.filter(d => W.effDate(t, d) < t0 && !W.isDone(t, d)), next = occs.filter(d => W.effDate(t, d) >= t0 && !W.isDone(t, d));
       status = missed.length ? ['red', '⚠ Not done yet (' + missed.map(d => W.dayName(W.effDate(t, d))).join(', ') + ')'] : next.length ? ['warn', '⏳ Due ' + W.relDay(W.effDate(t, next[0])).toLowerCase()] : occs.some(d => W.isDone(t, d)) ? ['ok', '✓ Done ' + doneOn()] : ['', 'Next: ' + nextOcc(t)];
@@ -514,7 +558,7 @@ function repeatRow(t) {
     for (let i = 0; i < 4; i++) {
       p0 = W.periodStart(t, W.addDays(p0, -1));
       if (W.periodEnd(t, p0) < (t.start || t0)) break;
-      if (W.isFlex(t)) { if ((t.placed || {})[p0] !== 'skip') dots.unshift(doneInPeriod(t, p0)); }
+      if (W.isFlex(t)) { if (!isSkip(t, p0)) dots.unshift(doneInPeriod(t, p0)); }
       else { const os = []; for (let d = p0, e = W.periodEnd(t, p0); d <= e; d = W.addDays(d, 1)) if (W.occursOn(t, d)) os.push(d); if (os.length) dots.unshift(os.every(d => W.isDone(t, d))); }
     }
   }

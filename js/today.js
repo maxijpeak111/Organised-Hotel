@@ -13,7 +13,10 @@ W.eventRow = function (e, showDay) {
       h('div', { class: 't' }, e.title),
       h('div', { class: 'sub' }, h('span', { class: 'pill' + (e.kind === 'busy' ? ' warn' : '') }, W.eventKind(e.kind)),
         [showDay ? W.relDay(e.date) : null, e.time].filter(Boolean).join(' · ')),
-      e.kind === 'function' && e.fd ? h('div', { class: 'sub', style: 'margin-top:4px' }, [e.fd.guests ? '👥 ' + e.fd.guests + ' guests' : null, e.fd.timings ? '🕒 ' + e.fd.timings.split('\n')[0] : null].filter(Boolean).join('  ·  ')) : null,
+      e.kind === 'function' && e.fd ? h('div', { class: 'fn-facts' },
+        e.fd.guests ? h('span', {}, '👥 ' + e.fd.guests + ' guests') : h('span', { class: 'missing' }, '👥 Numbers?'),
+        e.time ? h('span', {}, '🕒 ' + e.time) : h('span', { class: 'missing' }, '🕒 Time?'),
+        (e.fd.on || []).length ? h('span', {}, '👤 ' + e.fd.on.join(', ')) : h('span', { class: 'missing' }, '👤 Who\'s on?')) : null,
       e.notes ? h('div', { class: 'sub', style: 'margin-top:4px' }, '📝 ' + e.notes) : null));
 };
 
@@ -47,6 +50,14 @@ W.views.today = function (app) {
   let planNote = null;
   if (!total) planNote = !W.isShift(D) && (shift && shift.off || s.tasks.some(x => x.repeat !== 'none')) ? 'Day off 🎉 No tasks today. Anything set for today moves to your next shift.' : !shift && dailyCount ? 'No shift on the rota, so no daily tasks. Tap the shift above to add one.' : 'Nothing planned yet. Add a task above.';
 
+  const top = [
+    h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
+    h('div', { class: 'info-line', onclick: () => W.editShift(D) },
+      h('span', {}, W.niceDate(D)),
+      h('span', {}, '⏰ ' + (shift ? W.fmtShift(shift) : 'No shift set')),
+      h('span', { class: 'muted' }, (isToday ? 'Tomorrow ' : W.dayName(W.addDays(D, 1)) + ' ') + (next ? W.fmtShift(next) : '—')))];
+  if (isToday && (W.closing || s.closed[t])) return closeView(app, top, items, done, total, jn, jOpen);
+
   W.fill(app,
     h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
     h('div', { class: 'info-line', onclick: () => W.editShift(D) },
@@ -66,6 +77,7 @@ W.views.today = function (app) {
     h('h2', { class: 'todo-h' }, h('span', {}, 'To do list'), total ? h('span', { class: 'count' }, done + ' of ' + total) : null),
     total ? h('div', { class: 'todo-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
     h('div', { class: 'card todo' },
+      isToday && total && done === total ? h('div', { class: 'all-done' }, '🎉 All done for today. Nice work!') : null,
       total ? W.planList(items) : h('div', { class: 'ov-empty' }, planNote),
       pool.length && (W.isShift(D) || !s.shifts[D]) ? h('div', { class: 'todo-foot', onclick: () => W.addToDaySheet(D) }, '📋 Add a weekly job to this day (' + pool.length + ' to plan) ›') : null),
 
@@ -91,6 +103,9 @@ W.views.today = function (app) {
       : h('div', { class: 'empty' }, 'Nothing else in the next week'),
     upDays.length ? h('p', { class: 'muted small', style: 'text-align:center' }, 'Finished today\'s plan? Tick something off early to get ahead.') : null,
 
+    // CLOSE DAY
+    isToday ? h('button', { class: 'btn ghost block close-btn', onclick: () => { W.closing = true; W.render(); window.scrollTo(0, 0); } }, '🌙 Close day') : null,
+
     // JOURNAL
     h('div', { class: 'card tap', style: 'margin-top:18px', onclick: () => { W.journalDay = D; W.go('journal'); } },
       h('div', { class: 'row between' }, h('div', {}, h('div', { style: 'font-weight:800' }, '📓 Journal'),
@@ -98,6 +113,51 @@ W.views.today = function (app) {
         h('span', { class: 'pill blue' }, 'Open ›')))
   );
 };
+
+/* ---------- Close day: wrap-up, then a calm closed view ---------- */
+function closeView(app, top, items, done, total, jn, jOpen) {
+  const s = S(), t = W.today(), tm = W.addDays(t, 1);
+  let nextShiftDay = tm; for (let i = 1; i <= 14; i++) { const d = W.addDays(t, i); if (W.isShift(d)) { nextShiftDay = d; break; } }
+  const nItems = W.dayItems(nextShiftDay), nEvents = W.dayEvents(nextShiftDay);
+  const nextBlock = [
+    W.head('Next shift · ' + W.relDay(nextShiftDay) + (W.isShift(nextShiftDay) ? ' ' + W.fmtShift(s.shifts[nextShiftDay]) : ''), null),
+    W.card(nItems.length ? nItems.map(i => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', { class: 't' }, (i.task.flag ? '🚩 ' : '') + i.task.title), i.task.time ? h('div', { class: 'sub' }, h('span', { class: 'pill time' }, i.task.time)) : null)))
+      : h('div', { class: 'ov-empty' }, 'Nothing planned yet'),
+      nEvents.map(e => W.eventRow(e, false)))
+  ];
+  if (s.closed[t]) {
+    W.fill(app, top,
+      h('div', { class: 'closed-card' },
+        h('div', { class: 'closed-moon' }, '🌙'),
+        h('div', { class: 'closed-title' }, 'Day closed'),
+        h('div', { class: 'closed-sub' }, total ? done + ' of ' + total + ' tasks done' + (done === total ? ' 🎉' : '') : 'No tasks today', jn.length ? ' · ' + jn.length + ' journal note' + (jn.length > 1 ? 's' : '') : ''),
+        h('button', { class: 'btn ghost small', style: 'margin-top:10px', onclick: () => { delete s.closed[t]; W.save(); W.render(); } }, 'Reopen day')),
+      nextBlock);
+    return;
+  }
+  const left = items.filter(i => !W.isDone(i.task, i.occ));
+  const note = h('textarea', { placeholder: 'Anything to remember for next time?', style: 'min-height:70px' });
+  W.fill(app, top,
+    h('h1', {}, '🌙 Close day'),
+    h('p', { class: 'muted', style: 'margin-top:-10px' }, 'Quick wrap-up before you finish.'),
+    W.head('Left to do', left.length || null),
+    left.length ? W.card(left.map(i => h('div', { class: 'close-row' }, W.taskRow(i),
+      i.task.repeat === 'none' ? h('button', { class: 'btn ghost small', onclick: () => { i.task.date = nextShiftDay; W.save(); W.toast('Moved to ' + W.relDay(nextShiftDay).toLowerCase()); W.render(); } }, '→ ' + (nextShiftDay === tm ? 'Tomorrow' : W.dayName(nextShiftDay)))
+        : h('span', { class: 'muted small', style: 'padding-right:4px' }, i.task.repeat === 'daily' ? 'drops off' : 'goes to overdue'))))
+      : h('div', { class: 'card all-done' }, '🎉 Everything done today.'),
+    W.head('Journal', jn.length || null),
+    W.card(h('div', { class: 'muted small', style: 'padding:8px 0' }, jn.length ? (jOpen ? jOpen + ' note' + (jOpen > 1 ? 's' : '') + ' still to sort.' : 'All notes sorted.') : 'No notes today.'),
+      jOpen ? h('button', { class: 'btn ghost small', style: 'margin-bottom:8px', onclick: () => { W.journalDay = t; W.go('journal'); } }, 'Sort notes ›') : null,
+      note),
+    nextBlock,
+    h('button', { class: 'btn block', style: 'margin-top:16px', onclick: () => {
+      const txt = note.value.trim();
+      if (txt) { const now = new Date(); (s.journal[t] = s.journal[t] || []).push({ id: W.uid(), time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'), text: txt, sorted: '' }); }
+      s.closed[t] = true; W.closing = false; W.save(); W.render(); window.scrollTo(0, 0);
+      W.celebrate(done === total && total ? '🌙 Day closed. All done!' : '🌙 Day closed');
+    } }, '✓ Close the day'),
+    h('button', { class: 'btn ghost block', onclick: () => { W.closing = false; W.render(); } }, 'Not yet'));
+}
 
 // Swipe left/right on Today to change day
 let sx = null, sy = null;

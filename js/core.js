@@ -40,7 +40,9 @@ function defaults() {
     ideas: [],      // {id, title, notes, cat, status, created}
     journal: {},    // date -> [{id, time, text, sorted}]
     team: [],       // tasks handed out to staff (see tasks.js)
-    presets: []     // tasks the owner saved to reuse
+    presets: [],    // tasks the owner saved to reuse
+    staff: [],      // staff names, saved once and tapped to pick
+    closed: {}      // date -> true once the owner closes the day
   };
 }
 function load() {
@@ -123,5 +125,13 @@ W.cleanOn = (c, D) => { const t = W.today(); let d0 = W.cleanDue(c); if (d0 < t)
 W.cleanOverdue = c => W.daysBetween(W.today(), W.cleanDue(c)); // <0 overdue, 0 due today
 W.lowItems = () => W.state.stock.flatMap(s => s.items.filter(i => i.low).map(i => ({ ...i, section: s.name })));
 W.nextOrderDate = () => { const t = W.today(); const diff = (Number(W.state.settings.orderDay) - W.parse(t).getDay() + 7) % 7; return W.addDays(t, diff); };
+W.staffNames = () => [...new Set((W.state.staff || []).concat((W.state.team || []).map(t => t.who).filter(Boolean)))].sort((a, b) => a.localeCompare(b));
+W.addStaff = n => { n = (n || '').trim(); if (n && !W.state.staff.some(x => x.toLowerCase() === n.toLowerCase())) { W.state.staff.push(n); W.save(); } };
+// Small celebration when the day's list is finished
+W.celebrate = msg => {
+  const box = h('div', { class: 'confetti' }, [...Array(28)].map((_, i) => h('i', { style: 'left:' + (Math.random() * 100) + '%;animation-delay:' + (Math.random() * .5) + 's;background:' + ['#f6c324', '#1f5fae', '#6b4423', '#2e9e5b', '#fff'][i % 5] })),
+    h('div', { class: 'cele' }, msg || '🎉 All done for today!'));
+  document.body.append(box); setTimeout(() => box.remove(), 2600);
+};
 W.fmtShift = s => s ? (s.off ? 'Off' : ((s.start || '?') + '–' + (s.end || '?'))) : '';
 })();
