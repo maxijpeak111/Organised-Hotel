@@ -158,3 +158,11 @@ input[type=checkbox]:checked{background:var(--ok) url("data:image/svg+xml,%3Csvg
 .day-chip.dim{opacity:.6}
 .sitem .avg{font-size:12px;font-weight:800;color:var(--brown);background:var(--yellow-soft);border-radius:999px;padding:3px 8px;flex:none}
 .sitem .qty{width:68px;min-height:38px;padding:6px 8px;text-align:center;font-weight:800;flex:none;border-color:var(--blue)}
+.todo-h{margin-top:6px}
+.todo-bar{height:6px;background:#efe6d8;border-radius:99px;margin:-2px 0 10px;overflow:hidden}
+.todo-bar>i{display:block;height:100%;background:var(--yellow);border-radius:99px;transition:width .3s}
+.card.todo{padding:2px 14px}
+.card.todo .ov-empty{padding:16px 4px}
+.todo-foot{margin:0 -14px;padding:12px 14px;border-top:1px solid var(--line);font-weight:700;color:var(--blue);font-size:14px;cursor:pointer}
+h2 .count{text-transform:none}
+.card.todo .item:last-child,.card.todo .clean-group:last-child{border-bottom:0}

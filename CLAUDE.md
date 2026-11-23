@@ -21,7 +21,7 @@ Separate from the PT app — do not link or merge them.
   Flexible jobs (`W.isFlex`: weekly/2-weekly with no days, monthly with no date): owner picks the day each period → `t.placed[periodStart] = date | 'skip'`; `W.needsDay` / `W.needsDaySection` alert (Today + Tasks To do) until placed; `W.planPeriod` switches to next period when no working days are left.
   Days off: repeating tasks never land on a non-shift day — `W.effDate` moves them to the next shift (never past the task's next repeat). `W.dayItems(D)` uses effDate.
   `W.planList` folds 2+ cleaning tasks on a day into a "Cleaning ▸" dropdown. `W.migrate` converted v1 tasks + cleaning (tv: 2).
-- `js/today.js` Today (day-by-day, ‹ › and swipe): info line, quick-add, Today's plan (timed first, flagged next) → Overdue → Team → In the hotel (+ Get ready for) → Coming up → Journal link; and the Journal tab
+- `js/today.js` Today (day-by-day, ‹ › and swipe): info line, quick-add, To do list (timed first, flagged next) → Overdue → Team → In the hotel (+ Get ready for) → Coming up → Journal link; and the Journal tab
 - `js/stock.js` stock list: tap to tick → order list, optional qty box on ticked items; "Order placed" saves `orders` as `{name, qty}` (old orders were plain names — use `nm()/qy()`), clears ticks. "avg N" = average qty of last 6 orders with a qty. Sections: Draught Beer (Camden Hells, Camden Pale Ale, Seven Brothers IPA, Stella), Bottled Beers & Ciders, Wines (all wines incl. rosé/prosecco), Aperol Spritz in Liqueurs (`W.migrateStock`, stockV 2)
 - `js/app.js` router + nav (Today, Tasks, Stock, Journal, Rota, Ideas). Adding a JS file: add to `index.html` and `SHELL` in `sw.js`.
 - Every release: bump `?v=N` on all script/css links in `index.html` and in `SHELL` in `sw.js`, and bump `V` in `sw.js`. Stops phones mixing old and new files (that caused a blank page once).
@@ -33,6 +33,7 @@ Separate from the PT app — do not link or merge them.
 ## Owner's preferences
 - Shift time pickers start at 00:00. No stock-order banner on Today (stock badge on the tab is enough).
 - Tasks are the heart of the app: one list, chronological, timed tasks above untimed. No "asked of me"; notes cover who asked.
+- Today's tasks sit under a "To do list" heading (like "In the hotel") in a plain white card with a thin yellow progress bar and an "x of y" count (owner chose option A; no blue box).
 - Plan first, then Overdue. Flag = one level (🚩). Done tasks stay until deleted. Functions stay separate ("In the hotel") with full details.
 - No pre-selections or pre-made tasks/templates: tasks start blank (no default weekday). Presets only exist when the owner saves one (⭐ Save as preset → `state.presets`, chips under the task box, managed in Tasks → Repeating).
 - Each Tasks section's + (round button and the + by the typing box) opens that section's own form: To do → one-off task + date (no repeat options); Repeating → must choose how often (nothing pre-picked); Team → hand out task. No + on Done. Date chips start unselected on new tasks.

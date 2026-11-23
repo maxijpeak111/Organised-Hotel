@@ -62,15 +62,12 @@ W.views.today = function (app) {
 
     W.quickBox(isToday ? '' : D),
 
-    // YOUR DAY
-    h('div', { class: 'overview' },
-      h('div', { class: 'ov-head' },
-        h('div', {}, h('div', { class: 'ov-title' }, isToday ? 'Today\'s plan' : W.DAYS_LONG[W.parse(D).getDay()] + '\'s plan'),
-          h('div', { class: 'ov-sub' }, total ? done + ' of ' + total + ' done' : 'Nothing yet')),
-        total ? h('div', { class: 'ov-num' }, pct + '%') : null),
-      total ? h('div', { class: 'ov-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
-      total ? h('div', { class: 'ov-list' }, W.planList(items)) : h('div', { class: 'ov-empty' }, planNote),
-      pool.length && (W.isShift(D) || !s.shifts[D]) ? h('div', { class: 'ov-foot', onclick: () => W.addToDaySheet(D) }, '📋 Add a weekly job to this day (' + pool.length + ' to plan) ›') : null),
+    // TO DO LIST
+    h('h2', { class: 'todo-h' }, h('span', {}, 'To do list'), total ? h('span', { class: 'count' }, done + ' of ' + total) : null),
+    total ? h('div', { class: 'todo-bar' }, h('i', { style: 'width:' + pct + '%' })) : null,
+    h('div', { class: 'card todo' },
+      total ? W.planList(items) : h('div', { class: 'ov-empty' }, planNote),
+      pool.length && (W.isShift(D) || !s.shifts[D]) ? h('div', { class: 'todo-foot', onclick: () => W.addToDaySheet(D) }, '📋 Add a weekly job to this day (' + pool.length + ' to plan) ›') : null),
 
     // WEEKLY JOBS STILL TO PLAN
     isToday ? W.needsDaySection() : null,
