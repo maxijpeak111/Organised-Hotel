@@ -24,7 +24,7 @@ W.eventRow = function (e, showDay) {
 let viewDay = null;
 W.views.today = function (app) {
   const t = W.today(), s = S();
-  if (!viewDay || (viewDay < t)) viewDay = t;
+  if (!viewDay || (viewDay < t)) viewDay = s.closed[t] && !W.closing ? W.addDays(t, 1) : t;
   const D = viewDay, isToday = D === t;
   const shift = s.shifts[D], next = s.shifts[W.addDays(D, 1)];
   const items = W.dayItems(D);
@@ -56,7 +56,13 @@ W.views.today = function (app) {
       h('span', {}, W.niceDate(D)),
       h('span', {}, '⏰ ' + (shift ? W.fmtShift(shift) : 'No shift set')),
       h('span', { class: 'muted' }, (isToday ? 'Tomorrow ' : W.dayName(W.addDays(D, 1)) + ' ') + (next ? W.fmtShift(next) : '—')))];
-  if (isToday && (W.closing || s.closed[t])) return closeView(app, top, items, done, total, jn, jOpen);
+  const nav = h('div', { class: 'day-nav' },
+    h('button', { class: 'icon-btn', disabled: isToday, onclick: () => { viewDay = W.addDays(D, -1); W.render(); }, 'aria-label': 'Previous day' }, '‹'),
+    h('h1', { class: 'grow' }, title),
+    h('button', { class: 'icon-btn', onclick: () => { viewDay = W.addDays(D, 1); W.render(); }, 'aria-label': 'Next day' }, '›'),
+    h('button', { class: 'icon-btn', onclick: W.settings, 'aria-label': 'Settings' }, '⚙'));
+  if (isToday && W.closing) return closeView(app, top, items, done, total, jn, jOpen);
+  if (isToday && s.closed[t]) return closeView(app, top.concat(nav), items, done, total, jn, jOpen);
 
   W.fill(app,
     h('div', { class: 'brand' }, h('span', { class: 'dot' }), 'Organised Hotel'),
@@ -64,12 +70,10 @@ W.views.today = function (app) {
       h('span', {}, W.niceDate(D)),
       h('span', {}, '⏰ ' + (shift ? W.fmtShift(shift) : 'No shift set')),
       h('span', { class: 'muted' }, (isToday ? 'Tomorrow ' : W.dayName(W.addDays(D, 1)) + ' ') + (next ? W.fmtShift(next) : '—'))),
-    h('div', { class: 'day-nav' },
-      h('button', { class: 'icon-btn', disabled: isToday, onclick: () => { viewDay = W.addDays(D, -1); W.render(); }, 'aria-label': 'Previous day' }, '‹'),
-      h('h1', { class: 'grow' }, title),
-      h('button', { class: 'icon-btn', onclick: () => { viewDay = W.addDays(D, 1); W.render(); }, 'aria-label': 'Next day' }, '›'),
-      h('button', { class: 'icon-btn', onclick: W.settings, 'aria-label': 'Settings' }, '⚙')),
-    !isToday ? h('button', { class: 'btn ghost small', style: 'margin:0 0 12px', onclick: () => { viewDay = t; W.render(); } }, '← Back to today') : null,
+    nav,
+    !isToday && s.closed[t] ? h('div', { class: 'closed-strip', onclick: () => { viewDay = t; W.render(); window.scrollTo(0, 0); } },
+      h('span', {}, '🌙 Today is closed'), h('span', { class: 'muted small' }, 'See today ›')) : null,
+    !isToday && !s.closed[t] ? h('button', { class: 'btn ghost small', style: 'margin:0 0 12px', onclick: () => { viewDay = t; W.render(); } }, '← Back to today') : null,
 
     W.quickBox(isToday ? '' : D),
 
@@ -133,6 +137,7 @@ function closeView(app, top, items, done, total, jn, jOpen) {
         h('div', { class: 'closed-title' }, 'Day closed'),
         h('div', { class: 'closed-sub' }, total ? done + ' of ' + total + ' tasks done' + (done === total ? ' 🎉' : '') : 'No tasks today', jn.length ? ' · ' + jn.length + ' journal note' + (jn.length > 1 ? 's' : '') : ''),
         h('button', { class: 'btn ghost small', style: 'margin-top:10px', onclick: () => { delete s.closed[t]; W.save(); W.render(); } }, 'Reopen day')),
+      h('button', { class: 'btn block', style: 'margin-top:12px', onclick: () => { viewDay = tm; W.render(); window.scrollTo(0, 0); } }, 'See tomorrow & the days ahead ›'),
       nextBlock);
     return;
   }
@@ -154,7 +159,7 @@ function closeView(app, top, items, done, total, jn, jOpen) {
     h('button', { class: 'btn block', style: 'margin-top:16px', onclick: () => {
       const txt = note.value.trim();
       if (txt) { const now = new Date(); (s.journal[t] = s.journal[t] || []).push({ id: W.uid(), time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'), text: txt, sorted: '' }); }
-      s.closed[t] = true; W.closing = false; W.save(); W.render(); window.scrollTo(0, 0);
+      s.closed[t] = true; W.closing = false; viewDay = tm; W.save(); W.render(); window.scrollTo(0, 0);
       W.celebrate(done === total && total ? '🌙 Day closed. All done!' : '🌙 Day closed');
     } }, '✓ Close the day'),
     h('button', { class: 'btn ghost block', onclick: () => { W.closing = false; W.render(); } }, 'Not yet'));

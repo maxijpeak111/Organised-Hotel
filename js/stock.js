@@ -91,6 +91,24 @@ function editSection(sec) {
   ]);
 }
 
+function orderListSheet() {
+  const low = W.lowItems();
+  if (!low.length) return W.toast('Order list is empty');
+  W.sheet('Order list · ' + low.length + ' item' + (low.length > 1 ? 's' : ''), [
+    S().stock.map(sec => {
+      const its = sec.items.filter(i => i.low);
+      if (!its.length) return null;
+      return [h('div', { class: 'sub-head' }, sec.name),
+        h('div', { class: 'card' }, its.map(it => h('div', { class: 'item' },
+          h('div', { class: 'grow' }, it.name),
+          h('input', { class: 'qty', type: 'number', inputmode: 'numeric', min: 0, placeholder: 'Qty', value: it.qty || '', oninput: e => { it.qty = e.target.value; W.save(); } }),
+          h('button', { class: 'icon-btn', style: 'margin-top:0', 'aria-label': 'Take off list', onclick: () => { it.low = false; it.qty = ''; W.save(); W.render(); W.close(); orderListSheet(); } }, '✕'))))];
+    }),
+    h('button', { class: 'btn ghost block', onclick: () => W.share('Drinks order', orderText()) }, 'Share list'),
+    h('button', { class: 'btn block', onclick: () => { W.close(); W.render(); } }, 'Done')
+  ]);
+}
+
 function showOrder(o) {
   W.sheet('Order · ' + W.niceDate(o.date), [
     h('p', { class: 'muted' }, o.items.length + ' items'),
@@ -129,6 +147,7 @@ W.views.stock = function (app) {
       usualMissing.length ? h('div', { class: 'card', style: 'background:var(--panel2);margin:10px 0 0' },
         h('div', { style: 'font-weight:800' }, 'Usually ordered, not on the list yet'),
         h('div', { style: 'margin-top:6px' }, usualMissing.map(i => h('span', { class: 'chip', onclick: () => { i.low = true; W.save(); W.render(); } }, '+ ' + i.name)))) : null,
+      low.length ? h('button', { class: 'btn block', style: 'margin-top:10px', onclick: orderListSheet }, '📋 View order list (' + low.length + ')') : null,
       low.length ? h('div', { class: 'grid2', style: 'margin-top:10px' },
         h('button', { class: 'btn ghost', onclick: () => W.share('Drinks order', orderText()) }, 'Share list'),
         h('button', { class: 'btn', onclick: () => W.confirm('Mark this order as placed? The ' + low.length + ' items are saved to order history and the list is cleared.', () => {
